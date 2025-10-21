@@ -115,20 +115,28 @@ jobs:
             sudo ls -l ${RELEASES_DIR}/${RELEASE_NAME} \
           "
 
-      - name: Promote release (symlink -> current.jar)
-        id: promote
+      - name: Promote release (symlink -> current.jar) + verify
         run: |
-          RELEASE_NAME=$(tail -n1 $GITHUB_OUTPUT | cut -d'=' -f2) || true
-          # Si el paso anterior no exportó, lo tomo del contexto:
-          if [ -z "$RELEASE_NAME" ]; then RELEASE_NAME="app-$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}.jar"; fi
-
+          set -euxo pipefail
+          RELEASE_NAME="${{ steps.upload.outputs.release_name }}"
           ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} "\
-            sudo ln -sfn ${RELEASES_DIR}/${RELEASE_NAME} ${DEPLOY_DIR}/current.jar && \
-            sudo chown -h app:app ${DEPLOY_DIR}/current.jar && \
-            sudo ls -l ${DEPLOY_DIR}/current.jar && \
-            echo promoted=${RELEASE_NAME} \
+            set -euxo pipefail; \
+            sudo ln -sfn ${RELEASES_DIR}/${RELEASE_NAME} ${DEPLOY_DIR}/current.jar; \
+            sudo chown -h app:app ${DEPLOY_DIR}/current.jar; \
+            ls -l ${DEPLOY_DIR}/current.jar; \
+            # verificar que el target existe y es legible
+            TARGET=\$(readlink -f ${DEPLOY_DIR}/current.jar); \
+            echo TARGET=\$TARGET; \
+            [ -f \"\$TARGET\" ] || { echo '❌ symlink apunta a un archivo inexistente'; exit 1; }; \
+            sudo -u app test -r \"\$TARGET\" || { echo '❌ app no puede leer el jar'; ls -l \"\$TARGET\"; exit 1; } \
           "
-          echo "promoted=$RELEASE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Show systemd unit (debug)
+        run: |
+          ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} "\
+            sudo systemctl cat ${SERVICE_NAME} || true \
+          "
+
 
       - name: Restart service (wait until active)
         run: |
