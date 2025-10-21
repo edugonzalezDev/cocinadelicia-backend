@@ -88,11 +88,32 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} "sudo mkdir -p $RELEASES_DIR && sudo chown -R app:app $(dirname $DEPLOY_DIR)"
 
-      - name: Upload JAR (rsync)
+      - name: Debug permissions (remote)
         run: |
+          ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} "\
+            set -euxo pipefail; \
+            ls -ld ${DEPLOY_DIR} ${RELEASES_DIR} || true; \
+            id || true \
+          "
+
+      - name: Upload JAR to /tmp
+        id: upload
+        run: |
+          set -euxo pipefail
           RELEASE_NAME="app-$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}.jar"
-          rsync -avz -e "ssh -i ~/.ssh/id_rsa" "${{ steps.jar.outputs.jar_path }}" "${EC2_USER}@${EC2_HOST}:${RELEASES_DIR}/${RELEASE_NAME}"
-          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          scp -i ~/.ssh/id_rsa "${{ steps.jar.outputs.jar_path }}" "${EC2_USER}@${EC2_HOST}:/tmp/${RELEASE_NAME}"
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Move to releases with sudo and fix ownership
+        run: |
+          set -euxo pipefail
+          RELEASE_NAME="${{ steps.upload.outputs.release_name }}"
+          ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} "\
+            sudo mkdir -p ${RELEASES_DIR} && \
+            sudo install -o app -g app -m 0644 /tmp/${RELEASE_NAME} ${RELEASES_DIR}/${RELEASE_NAME} && \
+            sudo rm -f /tmp/${RELEASE_NAME} && \
+            sudo ls -l ${RELEASES_DIR}/${RELEASE_NAME} \
+          "
 
       - name: Promote release (symlink -> current.jar)
         id: promote
