@@ -155,21 +155,19 @@ jobs:
             sudo journalctl -u ${SERVICE_NAME} -n 200 --no-pager || true; \
             exit 1
           "
-      
-
-      - name: Health check
-        env:
-          APP_HEALTH_URL: ${{ secrets.APP_HEALTH_URL }}
+      - name: Health check (remote, via SSH)
         run: |
-          # Espera progresiva hasta 60s
-          for i in {1..12}; do
-            STATUS=$(curl -sS -m 5 -o /dev/null -w "%{http_code}" "$APP_HEALTH_URL" || true)
-            echo "Attempt $i - HTTP $STATUS"
-            if [ "$STATUS" = "200" ] || [ "$STATUS" = "204" ]; then
-              echo "App is healthy ✅"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "Health check failed ❌"
-          exit 1
+          ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} "\
+            set -euxo pipefail; \
+            for i in {1..12}; do
+              CODE=\$(curl -fsS -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/actuator/health || true); \
+              echo Attempt \$i - HTTP \$CODE; \
+              if [ \"\$CODE\" = \"200\" ] || [ \"\$CODE\" = \"204\" ]; then
+                echo 'App is healthy ✅'; exit 0; \
+              fi; \
+              sleep 5; \
+            done; \
+            echo 'Health check failed ❌ — dumping last logs'; \
+            sudo journalctl -u ${SERVICE_NAME} -n 200 --no-pager || true; \
+            exit 1 \
+          "
