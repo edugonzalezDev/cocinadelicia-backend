@@ -130,13 +130,32 @@ jobs:
           "
           echo "promoted=$RELEASE_NAME" >> $GITHUB_OUTPUT
 
-      - name: Restart service
+      - name: Restart service (wait until active)
         run: |
           ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} "\
-            sudo systemctl daemon-reload && \
-            sudo systemctl restart ${SERVICE_NAME} && \
-            sudo systemctl is-active ${SERVICE_NAME} \
+            set -euxo pipefail; \
+            sudo systemctl daemon-reload; \
+            sudo systemctl restart ${SERVICE_NAME}; \
+            # esperamos hasta 60s a que quede 'active'
+            for i in {1..12}; do
+              STATE=\$(systemctl is-active ${SERVICE_NAME} || true)
+              echo \"state=\$STATE\"
+              if [ \"\$STATE\" = \"active\" ]; then
+                echo 'Service is active ✅'; exit 0
+              elif [ \"\$STATE\" = \"failed\" ]; then
+                echo 'Service failed ❌'; \
+                sudo systemctl status ${SERVICE_NAME} --no-pager || true; \
+                sudo journalctl -u ${SERVICE_NAME} -n 200 --no-pager || true; \
+                exit 1
+              fi
+              sleep 5
+            done
+            echo 'Service stuck in activating ⏳'; \
+            sudo systemctl status ${SERVICE_NAME} --no-pager || true; \
+            sudo journalctl -u ${SERVICE_NAME} -n 200 --no-pager || true; \
+            exit 1
           "
+      
 
       - name: Health check
         env:
