@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: CocinaDeLicia
+  profiles:
+    default: dev
+
+server:
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
