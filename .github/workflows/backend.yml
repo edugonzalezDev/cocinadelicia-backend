@@ -33,6 +33,10 @@ jobs:
         run: |
           if [ -f ./mvnw ]; then chmod +x mvnw; fi
 
+      - name: Verify Java Format (Spotless)
+        run: |
+          if [ -f ./mvnw ]; then ./mvnw -B -ntp spotless:check; else mvn -B -ntp spotless:check; fi
+
       - name: Run tests
         run: |
           if [ -f ./mvnw ]; then ./mvnw -B -ntp test; else mvn -B -ntp test; fi
