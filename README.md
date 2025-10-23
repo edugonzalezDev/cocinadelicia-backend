@@ -152,6 +152,25 @@ src/
 
 ---
 
+## ✨ Estilo de Código y Commits
+
+- **Java Style:** [Google Java Format] aplicado con **Spotless**.
+- **Verificación automática en CI:** `spotless:check` corre antes de tests/build.
+- **Commits:** seguimos **Conventional Commits** (ej.: `feat: añadir endpoints de pedidos`).
+
+### Comandos locales
+```bash
+# Aplicar formato a todo el proyecto
+./mvnw spotless:apply
+
+# Verificar formato (falla si hay violaciones)
+./mvnw spotless:check
+```
+>Sugerido: activá también .editorconfig para uniformar fin de línea y whitespace en el IDE.
+Ver detalles y ejemplos en Convenciones.md del repo raíz.
+
+---
+
 ## 🗺️ Roadmap breve
 
 * **Sprint 1:** base del repo, Swagger, logs, modelo preliminar
@@ -164,19 +183,52 @@ src/
 
 ---
 
-## 🔄 CI/CD (placeholder)
+## 🔄 CI/CD
 
-* **Objetivo:** GitHub Actions → build Maven → deploy a **EC2** (SCP + SSH + systemd)
-* **Secrets esperados (placeholder):** `EC2_HOST`, `EC2_USER`, `EC2_KEY`, `AWS_REGION`
-* **Pipeline:** se documentará en Sprint 1/2 cuando se creen los recursos
+**GitHub Actions** ejecuta:
+1. **Lint de commits** (Conventional Commits) en `push` y `pull_request`.
+2. **Spotless Check** (`./mvnw -B -ntp spotless:check`).
+3. **Tests** (`./mvnw -B -ntp test`).
+4. **Package** (sin saltar tests).
+5. **Deploy a EC2** (SSH + `systemd`) en `main`.
+
+### Variables y Secrets requeridos (GitHub → Settings)
+- **Secrets**
+    - `EC2_HOST` → IP o hostname
+    - `EC2_USER` → usuario con sudo (p.ej. `ubuntu`)
+    - `EC2_SSH_KEY` → clave privada **PEM** (contenido)
+    - `EC2_SERVICE_NAME` → nombre del servicio `systemd` (p.ej. `cocinadelicia.service`)
+    - `DEPLOY_DIR` *(opcional)* → default: `/opt/cocinadelicia/backend`
+- **Opcionales** (si usás OIDC u otros)
+    - `AWS_REGION` si integrás otros pasos (no requerido para SSH puro)
+
+> El pipeline **falla** si:
+> - El mensaje de commit no respeta convención.
+> - `spotless:check` detecta formato incorrecto.
+> - Tests fallan o el servicio no queda `active` en EC2.
 
 ---
 
-## ☁️ Despliegue (placeholder)
+## ☁️ Despliegue
 
-* **Estrategia inicial:** EC2 (Java 17) sirviendo `jar` como servicio (`systemd`)
-* **Puertos:** `8080` (dev), prod detrás de Nginx/ALB (a definir)
-* **BD:** Aurora Serverless v2 (MySQL) — restringir SG por IP
+**Estrategia actual:** EC2 con Java 17, JAR como servicio **systemd**, Nginx (o ALB) al frente.
+
+- **Ruta de despliegue remoto** (ej.): `/opt/cocinadelicia/backend`
+    - `releases/` → versiones fechadas
+    - `current.jar` → symlink al release activo
+- **Reinicio**:
+  ```bash
+  sudo systemctl daemon-reload
+  sudo systemctl restart <EC2_SERVICE_NAME>
+  sudo systemctl status <EC2_SERVICE_NAME> --no-pager
+  ```
+- Healthcheck: GET /actuator/health en la propia instancia.
+
+  >Seguridad:
+  >
+  >- Restringí SG a IPs de administración.
+  >
+  >- Logs con journalctl -u <service> y/o CloudWatch (futuro).
 
 ---
 
@@ -186,6 +238,16 @@ src/
 * **CORS bloquea llamadas desde frontend:** actualizá `ALLOWED_ORIGINS`
 * **Swagger no carga:** revisá dependencia springdoc y ruta `/swagger-ui.html`
 * **Errores de encoding/zonas horarias:** agregá `serverTimezone=UTC` en la URL JDBC
+* **Falla Spotless en CI (verify)**: corré `./mvnw spotless:apply` localmente y commiteá los cambios.
+* **`systemd` queda en `failed`**: inspeccioná logs con:
+  ```bash
+  sudo journalctl -u ${EC2_SERVICE_NAME} -n 200 --no-pager
+    ```
+* **`current.jar` apunta a un destino inexistente:** recrear symlink:
+* ```bash
+  sudo ln -sfn /opt/cocinadelicia/backend/releases/<archivo.jar> /opt/cocinadelicia/backend/current.jar
+  sudo chown -h app:app /opt/cocinadelicia/backend/current.jar
+  ```
 
 ---
 
