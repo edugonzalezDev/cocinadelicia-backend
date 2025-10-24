@@ -12,25 +12,23 @@ import org.springframework.security.web.SecurityFilterChain;
 @Profile("dev") // <-- opcional pero recomendado: solo en perfil dev
 class SecurityConfigDev {
 
-    @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                // 1) Permitir la consola H2 sin autenticación
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(PathRequest.toH2Console()).permitAll()
-                        .anyRequest().authenticated()
-                )
-                // 2) Desactivar CSRF para la consola H2
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers(PathRequest.toH2Console())
-                )
-                // 3) Permitir iframes desde el mismo origen (necesario para H2)
-                .headers(headers -> headers
-                        .frameOptions(frame -> frame.sameOrigin())
-                )
-                // 4) Seguir usando formLogin para el resto
-                .formLogin(Customizer.withDefaults());
+  @Bean
+  SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        // 1) Permitir la consola H2 sin autenticación
+        .authorizeHttpRequests(
+            auth ->
+                auth.requestMatchers(PathRequest.toH2Console())
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated())
+        // 2) Desactivar CSRF para la consola H2
+        .csrf(csrf -> csrf.ignoringRequestMatchers(PathRequest.toH2Console()))
+        // 3) Permitir iframes desde el mismo origen (necesario para H2)
+        .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+        // 4) Seguir usando formLogin para el resto
+        .formLogin(Customizer.withDefaults());
 
-        return http.build();
-    }
+    return http.build();
+  }
 }
