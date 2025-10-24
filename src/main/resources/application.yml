@@ -3,11 +3,14 @@ spring:
     name: CocinaDeLicia
   profiles:
     default: dev
+
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
     validate-on-migrate: true
+    # En prod nunca limpiar:
+    clean-disabled: true
 
 server:
   forward-headers-strategy: framework

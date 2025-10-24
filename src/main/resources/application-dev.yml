@@ -6,14 +6,16 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
   datasource:
     url: jdbc:h2:mem:cdd;DB_CLOSE_DELAY=-1;MODE=MySQL
     driver-class-name: org.h2.Driver
     username: sa
     password:
+
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: none    # Flyway crea/migra el schema
     show-sql: true
     properties:
       hibernate:
@@ -21,4 +23,4 @@ spring:
     open-in-view: false
 
 flyway:
-  enabled: false
+  enabled: true         # << activar en dev
