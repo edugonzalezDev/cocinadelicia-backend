@@ -29,7 +29,8 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
     validate-on-migrate: true
-    clean-disabled: true
+    clean-disabled: false
+    clean-on-validation-error: true
 
 # 🔎 LOGGING: nivel DEBUG para ver exactamente por qué valida/migra mal
 logging:
