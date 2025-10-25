@@ -25,3 +25,15 @@ spring:
 
   flyway:
     enabled: true         # << activar en dev
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
+
+cdd:
+  security:
+    groups-claim: cognito:groups
+    # Opcional: valida la audiencia (app client id) si querés ser más estricto:
+    required-audience: ${COGNITO_APP_CLIENT_ID:}
