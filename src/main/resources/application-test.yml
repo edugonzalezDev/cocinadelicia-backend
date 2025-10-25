@@ -1,0 +1,7 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # IMPORTANTe para tests: evitar llamadas externas y placeholders
+          jwk-set-uri: http://localhost:0/fake-jwks # no se consulta hasta que se "decode"
