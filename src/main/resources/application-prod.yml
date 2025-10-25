@@ -18,7 +18,7 @@ spring:
     hibernate:
       ddl-auto: none        # Flyway controla el schema
     open-in-view: false
-    show-sql: truegi         # En prod suele ir false (puedes activar temporalmente si querés)
+    show-sql: true       # En prod suele ir false (puedes activar temporalmente si querés)
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
