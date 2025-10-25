@@ -93,8 +93,8 @@ CREATE TABLE IF NOT EXISTS price_history (
   CONSTRAINT chk_currency CHECK (currency IN ('UYU','USD'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_ph_variant_from ON price_history (product_variant_id, valid_from);
-CREATE INDEX IF NOT EXISTS idx_ph_variant_to   ON price_history (product_variant_id, valid_to);
+ALTER TABLE price_history  ADD INDEX IF NOT EXISTS idx_ph_variant_from (product_variant_id, valid_from);
+ALTER TABLE price_history  ADD INDEX IF NOT EXISTS idx_ph_variant_to   (product_variant_id, valid_to);
 
 -- ===============================
 -- Usuarios y Roles (Cognito + BD)
@@ -194,8 +194,8 @@ CREATE TABLE IF NOT EXISTS customer_order (
   CONSTRAINT chk_order_currency CHECK (currency IN ('UYU','USD'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_order_user_created   ON customer_order (user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_order_status_created ON customer_order (status, created_at);
+ALTER TABLE customer_order ADD INDEX IF NOT EXISTS idx_order_user_created   (user_id, created_at);
+ALTER TABLE customer_order ADD INDEX IF NOT EXISTS idx_order_status_created (status, created_at);
 
 CREATE TABLE IF NOT EXISTS order_item (
   id                 BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS order_item (
     ON UPDATE RESTRICT ON DELETE RESTRICT
 );
 
-CREATE INDEX IF NOT EXISTS idx_item_order ON order_item (order_id);
+ALTER TABLE order_item     ADD INDEX IF NOT EXISTS idx_item_order (order_id);
 
 -- payment_method: CASH, BANK_TRANSFER, MERCADOPAGO, CREDIT_CARD, DEBIT_CARD
 -- payment_status: PENDING, AUTHORIZED, PAID, FAILED, REFUNDED, CANCELED
@@ -246,5 +246,5 @@ CREATE TABLE IF NOT EXISTS payment (
   CONSTRAINT chk_payment_currency CHECK (currency IN ('UYU','USD'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_payment_order         ON payment (order_id);
-CREATE INDEX IF NOT EXISTS idx_payment_status_created ON payment (status, created_at);
+ALTER TABLE payment        ADD INDEX IF NOT EXISTS idx_payment_order (order_id);
+ALTER TABLE payment        ADD INDEX IF NOT EXISTS idx_payment_status_created (status, created_at);

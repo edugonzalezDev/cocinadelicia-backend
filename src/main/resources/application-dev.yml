@@ -22,5 +22,5 @@ spring:
         format_sql: true
     open-in-view: false
 
-flyway:
-  enabled: true         # << activar en dev
+  flyway:
+    enabled: true         # << activar en dev
