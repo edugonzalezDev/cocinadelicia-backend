@@ -31,10 +31,10 @@ public class AppUser extends BaseAudit {
   @Column(name = "cognito_user_id", length = 191, nullable = false)
   private String cognitoUserId;
 
-  @Column(name = "first_name", length = 191, nullable = false)
+  @Column(name = "first_name", length = 191)
   private String firstName;
 
-  @Column(name = "last_name", length = 191, nullable = false)
+  @Column(name = "last_name", length = 191)
   private String lastName;
 
   @Column(length = 191, nullable = false)
