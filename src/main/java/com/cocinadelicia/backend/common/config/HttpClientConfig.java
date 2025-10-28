@@ -8,11 +8,11 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 public class HttpClientConfig {
 
-    @Bean
-    public RestTemplate restTemplate() {
-        var factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(5000);
-        factory.setReadTimeout(5000);
-        return new RestTemplate(factory);
-    }
+  @Bean
+  public RestTemplate restTemplate() {
+    var factory = new SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(5000);
+    factory.setReadTimeout(5000);
+    return new RestTemplate(factory);
+  }
 }

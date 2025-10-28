@@ -13,14 +13,12 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserService userService;
+  private final UserService userService;
 
-    @PostMapping("/register")
-    @ResponseStatus(HttpStatus.OK) // 200 idempotente
-    public UserResponseDTO register(
-            @RequestBody(required = false) UserRegistrationDTO body,
-            JwtAuthenticationToken auth
-    ) {
-        return userService.registerOrUpdateFromToken(body, auth);
-    }
+  @PostMapping("/register")
+  @ResponseStatus(HttpStatus.OK) // 200 idempotente
+  public UserResponseDTO register(
+      @RequestBody(required = false) UserRegistrationDTO body, JwtAuthenticationToken auth) {
+    return userService.registerOrUpdateFromToken(body, auth);
+  }
 }
