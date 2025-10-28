@@ -23,3 +23,6 @@ management:
   endpoint:
     health:
       show-details: always
+
+cognito:
+  domain: ${COGNITO_DOMAIN:cdd-auth.auth.us-east-1.amazoncognito.com}
