@@ -58,7 +58,7 @@ class SecurityConfig {
                     .hasAnyRole("CHEF", "ADMIN")
 
                     // Tu API (requiere token)
-                    .requestMatchers("/**")
+                    .requestMatchers("/api/**")
                     .authenticated()
 
                     // resto denegado
