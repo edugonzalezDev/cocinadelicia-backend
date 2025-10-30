@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration monitorInterval="30" status="WARN">
+    <!-- Propiedades reutilizables -->
+    <Properties>
+        <!-- patrón pedido en la historia -->
+        <Property name="LOG_PATTERN">[%d{yyyy-MM-dd HH:mm:ss}] %-5p %c{1}:%L - %m%n</Property>
+        <!-- carpeta por defecto (útil si corrés local) -->
+        <Property name="LOG_DIR">logs</Property>
+    </Properties>
+
+    <!-- ========== APPENDERS ========== -->
+    <!-- Consola: lo que vas a ver en IDEA / mvn spring-boot:run -->
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <!-- Este lo dejamos creado porque después en prod lo vamos a usar -->
+        <RollingFile name="FileAppender"
+                     fileName="${LOG_DIR}/cdd-app.log"
+                     filePattern="${LOG_DIR}/cdd-app-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <!-- rota cada día -->
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <!-- y también por tamaño -->
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
+    </Appenders>
+
+    <!-- ========== LOGGERS ========== -->
+    <Loggers>
+        <!-- Bajar ruido de librerías -->
+        <Logger name="org.springframework" level="INFO"/>
+        <Logger name="org.hibernate" level="INFO"/>
+
+        <!-- ROOT para DEV: DEBUG y a la consola -->
+        <Root level="DEBUG">
+            <AppenderRef ref="Console"/>
+            <!-- si querés ver archivo también en dev, descomentá: -->
+            <!-- <AppenderRef ref="FileAppender"/> -->
+        </Root>
+    </Loggers>
+</Configuration>

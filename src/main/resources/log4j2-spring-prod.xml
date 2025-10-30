@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration monitorInterval="60" status="WARN">
+    <Properties>
+        <Property name="LOG_PATTERN">[%d{yyyy-MM-dd HH:mm:ss}] %-5p %c{1}:%L - %m%n</Property>
+        <!-- en EC2 podés poner /var/log/cocinadelicia -->
+        <Property name="LOG_DIR">${sys:LOG_DIR:-/var/log/cocinadelicia}</Property>
+    </Properties>
+
+    <Appenders>
+        <!-- En prod también está bueno ver consola (journalctl, docker logs, cwagent) -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <!-- Archivo rotativo -->
+        <RollingFile name="FileAppender"
+                     fileName="${LOG_DIR}/cdd-app.log"
+                     filePattern="${LOG_DIR}/cdd-app-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <SizeBasedTriggeringPolicy size="20 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="15"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <!-- En prod bajamos el ruido -->
+        <Logger name="org.springframework" level="INFO"/>
+        <Logger name="org.hibernate" level="WARN"/>
+        <Logger name="org.flywaydb" level="INFO"/>
+
+        <!-- ROOT en prod: INFO -->
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="FileAppender"/>
+        </Root>
+    </Loggers>
+</Configuration>

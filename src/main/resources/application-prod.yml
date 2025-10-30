@@ -47,6 +47,7 @@ cdd:
 
 # 🔎 LOGGING: nivel DEBUG para ver exactamente por qué valida/migra mal
 logging:
+  config: classpath:log4j2-spring-prod.xml
   level:
     org.flywaydb: DEBUG
     org.hibernate.SQL: DEBUG
