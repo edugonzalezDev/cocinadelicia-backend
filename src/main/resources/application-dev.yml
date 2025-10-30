@@ -37,3 +37,12 @@ cdd:
     groups-claim: cognito:groups
     # Opcional: valida la audiencia (app client id) si querés ser más estricto:
     required-audience: ${COGNITO_APP_CLIENT_ID:}
+
+app:
+  openapi:
+    server:
+      dev: http://localhost:8080
+      prod: https://api.lacocinadelicia.com
+
+logging:
+  config: classpath:log4j2-spring.xml

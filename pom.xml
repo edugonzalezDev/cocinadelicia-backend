@@ -28,12 +28,13 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
+		<springdoc.version>2.8.13</springdoc.version>
 	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.8.13</version>
+			<version>${springdoc.version}</version>
 		</dependency>
 		<!-- Excluir Logback del starter web (si es necesario) -->
 		<dependency>
