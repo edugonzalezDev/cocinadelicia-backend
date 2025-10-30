@@ -51,3 +51,9 @@ logging:
     org.flywaydb: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+# application-prod.yml
+app:
+  openapi:
+    server:
+      dev: https://api.lacocinadelicia.com   # opcional (puede apuntar a prod)
+      prod: https://api.lacocinadelicia.com
