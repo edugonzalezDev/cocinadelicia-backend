@@ -21,7 +21,7 @@ public class UserController {
   @ResponseStatus(HttpStatus.OK) // 200 idempotente
   public UserResponseDTO register(
       @RequestBody(required = false) UserRegistrationDTO body, JwtAuthenticationToken auth) {
-      log.info("Register or update user called with body: {} and auth: {}", body, auth);
+    log.info("Register or update user called with body: {} and auth: {}", body, auth);
     return userService.registerOrUpdateFromToken(body, auth);
   }
 }
