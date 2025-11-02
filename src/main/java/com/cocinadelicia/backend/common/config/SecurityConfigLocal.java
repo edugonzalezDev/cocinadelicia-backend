@@ -13,8 +13,8 @@ import org.springframework.security.web.SecurityFilterChain;
  * principal JWT.
  */
 @Configuration
-@Profile("dev")
-class SecurityConfigDev {
+@Profile("local")
+class SecurityConfigLocal {
 
   @Bean
   @Order(0) // esta cadena se evalúa antes que la principal
