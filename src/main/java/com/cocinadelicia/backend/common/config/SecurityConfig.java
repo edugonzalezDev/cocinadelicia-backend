@@ -100,7 +100,7 @@ class SecurityConfig {
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cors = new CorsConfiguration();
     // Para dev es más práctico usar patterns por puerto
-    cors.setAllowedOriginPatterns(List.of("http://localhost:*", "https://www.lacocinadelicia.com", "https://cocinadelicia-dev.vercel.app"));
+    cors.setAllowedOriginPatterns(List.of("http://localhost:*", "https://www.lacocinadelicia.com", "https://cocinadelicia-frontend.netlify.app/"));
     cors.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     cors.setAllowedHeaders(
         Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
