@@ -9,8 +9,12 @@ RUN mvn -B -ntp package -DskipTests
 # --------- Stage 2: run ----------
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-# Variable para el perfil
+
+# Render te pone PORT, pero por las dudas:
+ENV PORT=8080
 ENV SPRING_PROFILES_ACTIVE=dev
+
 COPY --from=build /app/target/*.jar app.jar
+
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+CMD ["sh", "-c", "java -jar /app/app.jar --server.port=${PORT}"]
