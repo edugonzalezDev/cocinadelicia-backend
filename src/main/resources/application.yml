@@ -1,15 +1,18 @@
+# src/main/resources/application.yml
 spring:
   application:
     name: CocinaDeLicia
   profiles:
-    default: dev
+    # local: local
+    # dev: dev
+    # prod: prod
+    default: local
 
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: false
     validate-on-migrate: true
-    # En prod nunca limpiar:
     clean-disabled: false
 
   mvc:
@@ -17,6 +20,7 @@ spring:
   web:
     resources:
       add-mappings: false
+
 server:
   forward-headers-strategy: framework
 
@@ -30,4 +34,5 @@ management:
       show-details: always
 
 cognito:
+  # valor por defecto, lo sobreescriben los profiles
   domain: ${COGNITO_DOMAIN:cdd-auth.auth.us-east-1.amazoncognito.com}
