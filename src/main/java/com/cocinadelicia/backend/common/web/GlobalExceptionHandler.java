@@ -87,22 +87,33 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
   }
 
-  // 3.1) BadRequest de negocio (ej: reglas del dominio)
+  // 3.1) BadRequest de negocio (ej: reglas del dominio) — AHORA CON CODE
   @ExceptionHandler(BadRequestException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ApiError handleBadRequest(BadRequestException ex, WebRequest request) {
     log.info("BadRequest: {}", ex.getMessage());
+    // Si ex.code() es null, simplemente no se enviará un code en JSON (quedará null)
     return ApiError.of(
-        HttpStatus.BAD_REQUEST.value(), "Bad Request", ex.getMessage(), getPath(request));
+        HttpStatus.BAD_REQUEST.value(),
+        "Bad Request",
+        ex.getMessage(),
+        getPath(request),
+        ex.code() // <- NUEVO
+        );
   }
 
-  // 3.2) NotFound de negocio (oculta existencia de recursos ajenos)
+  // 3.2) NotFound de negocio (oculta existencia de recursos ajenos) — AHORA CON CODE
   @ExceptionHandler(NotFoundException.class)
   @ResponseStatus(HttpStatus.NOT_FOUND)
   public ApiError handleNotFoundBusiness(NotFoundException ex, WebRequest request) {
     log.warn("NotFound: {}", ex.getMessage());
     return ApiError.of(
-        HttpStatus.NOT_FOUND.value(), "Not Found", ex.getMessage(), getPath(request));
+        HttpStatus.NOT_FOUND.value(),
+        "Not Found",
+        ex.getMessage(),
+        getPath(request),
+        ex.code() // <- NUEVO
+        );
   }
 
   private String getPath(WebRequest request) {

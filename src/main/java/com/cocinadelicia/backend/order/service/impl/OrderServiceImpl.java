@@ -38,54 +38,59 @@ public class OrderServiceImpl implements OrderService {
   private final ProductVariantRepository productVariantRepository;
 
   private final CustomerOrderRepository customerOrderRepository;
-  private final OrderItemRepository
-      orderItemRepository; // (no lo usamos explícitamente; Cascade en Order)
+  private final OrderItemRepository orderItemRepository; // no se usa explícitamente
   private final PriceQueryPort priceQueryPort;
 
   private static final BigDecimal ZERO = new BigDecimal("0.00");
 
   @Override
   public OrderResponse createOrder(CreateOrderRequest request, Long appUserId) {
-    // 1) Validaciones mínimas del payload
+    // 1️⃣ Validaciones mínimas del payload (con códigos)
     if (request.items() == null || request.items().isEmpty()) {
-      throw new BadRequestException("El pedido debe tener al menos un ítem.");
+      throw new BadRequestException("ORDER_ITEMS_EMPTY", "Debe agregar al menos un ítem.");
     }
-    request
-        .items()
-        .forEach(
-            it -> {
-              if (it.quantity() <= 0) {
-                throw new BadRequestException("La cantidad de cada ítem debe ser >= 1.");
-              }
-            });
+
+    for (OrderItemRequest it : request.items()) {
+      if (it.quantity() <= 0) {
+        throw new BadRequestException(
+            "INVALID_QUANTITY", "La cantidad de cada ítem debe ser >= 1.");
+      }
+    }
 
     if (request.fulfillment() == null) {
-      throw new BadRequestException("El tipo de fulfillment es obligatorio.");
-    }
-    if (request.fulfillment() == FulfillmentType.DELIVERY) {
-      if (request.shipping() == null) {
-        throw new BadRequestException("Datos de envío requeridos para DELIVERY.");
-      }
-      // Nota: a esta altura ya pasó validaciones @NotBlank de ShippingAddressRequest
+      throw new BadRequestException(
+          "FULFILLMENT_REQUIRED", "El tipo de fulfillment es obligatorio.");
     }
 
-    // 2) Usuario (dueño del pedido)
+    if (request.fulfillment() == FulfillmentType.DELIVERY) {
+      var s = request.shipping();
+      if (s == null
+          || isBlank(s.name())
+          || isBlank(s.phone())
+          || isBlank(s.line1())
+          || isBlank(s.city())) {
+        throw new BadRequestException(
+            "DELIVERY_ADDRESS_REQUIRED",
+            "Complete los datos de envío (nombre, teléfono, dirección y ciudad).");
+      }
+    }
+
+    // 2️⃣ Usuario (dueño del pedido)
     AppUser user =
         userRepository
             .findById(appUserId)
-            .orElseThrow(() -> new NotFoundException("Usuario no encontrado: id=" + appUserId));
+            .orElseThrow(() -> new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado."));
 
-    // 3) Crear entidad Order base
+    // 3️⃣ Crear entidad base del pedido
     CustomerOrder order =
         CustomerOrder.builder()
             .user(user)
             .status(OrderStatus.CREATED)
             .fulfillment(request.fulfillment())
-            // currency default en entidad = UYU
             .notes(request.notes())
             .build();
 
-    // 4) Snapshot shipping si DELIVERY
+    // 4️⃣ Snapshot shipping si DELIVERY
     if (request.fulfillment() == FulfillmentType.DELIVERY) {
       var s = request.shipping();
       order.setShipName(s.name());
@@ -98,7 +103,7 @@ public class OrderServiceImpl implements OrderService {
       order.setShipReference(s.reference());
     }
 
-    // 5) Armar items: validar producto/variante, obtener precio vigente y calcular line totals
+    // 5️⃣ Armar items: validar producto/variante, obtener precio vigente y calcular totales
     BigDecimal subtotal = ZERO;
 
     for (OrderItemRequest it : request.items()) {
@@ -106,38 +111,38 @@ public class OrderServiceImpl implements OrderService {
           productRepository
               .findById(it.productId())
               .orElseThrow(
-                  () -> new NotFoundException("Producto no encontrado: id=" + it.productId()));
+                  () -> new NotFoundException("PRODUCT_NOT_FOUND", "Producto no encontrado."));
 
       ProductVariant variant =
           productVariantRepository
               .findById(it.productVariantId())
               .orElseThrow(
-                  () ->
-                      new NotFoundException("Variante no encontrada: id=" + it.productVariantId()));
+                  () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada."));
 
-      // (Opcional) validar que variant.getProduct().getId() == productId
+      // Validar que la variante pertenezca al producto
       if (variant.getProduct() == null || !variant.getProduct().getId().equals(product.getId())) {
-        throw new BadRequestException("La variante no pertenece al producto especificado.");
+        throw new BadRequestException(
+            "VARIANT_MISMATCH", "La variante no pertenece al producto indicado.");
       }
 
+      // Precio vigente
       BigDecimal unitPrice =
           priceQueryPort
               .findActivePriceByVariantId(variant.getId())
               .orElseThrow(
                   () ->
-                      new NotFoundException(
-                          "No hay precio vigente para la variante: id=" + variant.getId()));
+                      new BadRequestException(
+                          "PRICE_NOT_FOUND",
+                          "No hay precio vigente para la variante seleccionada."));
 
       unitPrice = unitPrice.setScale(2, RoundingMode.HALF_UP);
-
       BigDecimal lineTotal =
           unitPrice.multiply(BigDecimal.valueOf(it.quantity())).setScale(2, RoundingMode.HALF_UP);
-
       subtotal = subtotal.add(lineTotal);
 
       OrderItem item =
           OrderItem.builder()
-              .order(order) // se re-asigna en addItem, pero no molesta
+              .order(order)
               .product(product)
               .productVariant(variant)
               .productName(product.getName())
@@ -147,40 +152,45 @@ public class OrderServiceImpl implements OrderService {
               .lineTotal(lineTotal)
               .build();
 
-      order.addItem(item); // mantiene consistencia en ambos lados
+      order.addItem(item);
     }
 
-    // 6) Totales (por ahora tax=0 y discount=0; ajustaremos en sprints futuros)
+    // 6️⃣ Totales (por ahora tax=0 y discount=0)
     order.setSubtotalAmount(subtotal);
     order.setTaxAmount(ZERO);
     order.setDiscountAmount(ZERO);
     order.setTotalAmount(subtotal);
 
-    // 7) Persistir (cascada guarda los items)
+    // 7️⃣ Persistir (Cascade guarda items)
     CustomerOrder saved = customerOrderRepository.save(order);
 
-    // 8) Responder DTO
+    // 8️⃣ Devolver respuesta DTO
     return OrderMapper.toResponse(saved);
   }
 
-  // ==== Métodos de lectura (para que el controller compile). Implementación simple ====
+  // ==== Métodos de lectura ====
 
   @Override
   public OrderResponse getOrderById(Long orderId, Long appUserId) {
     CustomerOrder o =
         customerOrderRepository
             .findById(orderId)
-            .orElseThrow(() -> new NotFoundException("Pedido no encontrado: id=" + orderId));
+            .orElseThrow(() -> new NotFoundException("ORDER_NOT_FOUND", "Pedido no encontrado."));
 
     if (!o.getUser().getId().equals(appUserId)) {
-      throw new NotFoundException("Pedido no pertenece al usuario."); // 404 para no filtrar info
+      throw new NotFoundException(
+          "ORDER_NOT_FOUND", "Pedido no pertenece al usuario."); // 404 para ocultar
     }
     return OrderMapper.toResponse(o);
   }
 
   @Override
   public Page<OrderResponse> getMyOrders(Long appUserId, Pageable pageable) {
-    // El sort se define en el controller con @PageableDefault(createdAt,DESC)
     return customerOrderRepository.findByUser_Id(appUserId, pageable).map(OrderMapper::toResponse);
+  }
+
+  // === Helpers ===
+  private boolean isBlank(String s) {
+    return s == null || s.isBlank();
   }
 }
