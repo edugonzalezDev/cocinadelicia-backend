@@ -1,9 +1,12 @@
 package com.cocinadelicia.backend.config;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.ExternalDocumentation;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import java.util.List;
 import org.springdoc.core.models.GroupedOpenApi;
@@ -14,7 +17,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiConfig {
 
-  // Leé URLs desde properties para no hardcodear y facilitar migración
   @Value("${app.openapi.server.dev:http://localhost:8080}")
   private String devServerUrl;
 
@@ -25,6 +27,8 @@ public class OpenApiConfig {
   public OpenAPI cocinaDeLiciaOpenAPI(
       @Value("${spring.application.name:CocinaDeLicia}") String appName,
       @Value("${app.version:v1.0.0}") String appVersion) {
+
+    final String securitySchemeName = "bearer-jwt";
 
     return new OpenAPI()
         .info(
@@ -42,19 +46,22 @@ public class OpenApiConfig {
         .externalDocs(
             new ExternalDocumentation()
                 .description("Convenciones & Sprints")
-                .url("https://tu-docs-o-notion"));
+                .url("https://tu-docs-o-notion"))
+        // ⬇️ Seguridad: esquema Bearer y requirement por defecto
+        .components(
+            new Components()
+                .addSecuritySchemes(
+                    securitySchemeName,
+                    new SecurityScheme()
+                        .name(securitySchemeName)
+                        .type(SecurityScheme.Type.HTTP)
+                        .scheme("bearer")
+                        .bearerFormat("JWT")))
+        .addSecurityItem(new SecurityRequirement().addList(securitySchemeName));
   }
 
-  /**
-   * Monolito: agrupa por paths para no acoplarte al package actual. Al migrar a microservicios,
-   * podés: - cambiar 'pathsToMatch' al prefijo del servicio, o - usar
-   * 'packagesToScan("<tu-servicio>.controller")' por servicio.
-   */
   @Bean
   public GroupedOpenApi publicApi() {
-    return GroupedOpenApi.builder()
-        .group("public")
-        .pathsToMatch("/api/**") // desacopla del package y te sirve hoy
-        .build();
+    return GroupedOpenApi.builder().group("public").pathsToMatch("/api/**").build();
   }
 }

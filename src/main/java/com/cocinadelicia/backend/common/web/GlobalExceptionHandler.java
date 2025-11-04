@@ -1,6 +1,8 @@
 // src/main/java/com/cocinadelicia/backend/common/web/GlobalExceptionHandler.java
 package com.cocinadelicia.backend.common.web;
 
+import com.cocinadelicia.backend.common.exception.BadRequestException;
+import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.user.service.UserService.EmailConflictException;
 import com.cocinadelicia.backend.user.service.UserService.MissingEmailException;
 import java.util.HashMap;
@@ -83,6 +85,24 @@ public class GlobalExceptionHandler {
             "Ocurrió un error inesperado. Si persiste, contacte al administrador.",
             getPath(request));
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+  }
+
+  // 3.1) BadRequest de negocio (ej: reglas del dominio)
+  @ExceptionHandler(BadRequestException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public ApiError handleBadRequest(BadRequestException ex, WebRequest request) {
+    log.info("BadRequest: {}", ex.getMessage());
+    return ApiError.of(
+        HttpStatus.BAD_REQUEST.value(), "Bad Request", ex.getMessage(), getPath(request));
+  }
+
+  // 3.2) NotFound de negocio (oculta existencia de recursos ajenos)
+  @ExceptionHandler(NotFoundException.class)
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  public ApiError handleNotFoundBusiness(NotFoundException ex, WebRequest request) {
+    log.warn("NotFound: {}", ex.getMessage());
+    return ApiError.of(
+        HttpStatus.NOT_FOUND.value(), "Not Found", ex.getMessage(), getPath(request));
   }
 
   private String getPath(WebRequest request) {
