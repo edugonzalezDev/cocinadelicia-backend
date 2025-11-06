@@ -194,6 +194,11 @@ public class OrderServiceImpl implements OrderService {
   }
 
   @Override
+  public Page<OrderResponse> getAllOrders(Pageable pageable) {
+    return customerOrderRepository.findAll(pageable).map(OrderMapper::toResponse);
+  }
+
+  @Override
   public OrderResponse updateStatus(
       Long orderId, String performedBy, UpdateOrderStatusRequest request) {
     if (request == null || request.status() == null) {

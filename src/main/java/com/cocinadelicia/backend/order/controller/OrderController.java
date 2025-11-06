@@ -116,6 +116,16 @@ public class OrderController {
     return ResponseEntity.ok(orderService.getMyOrders(appUserId, pageable));
   }
 
+  @Operation(summary = "Listar pedidos (ADMIN/CHEF)", description = "Listado global, paginado")
+  @GetMapping
+  @PreAuthorize("hasRole('ADMIN') or hasRole('CHEF')")
+  public ResponseEntity<Page<OrderResponse>> getAll(
+      @ParameterObject
+          @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    return ResponseEntity.ok(orderService.getAllOrders(pageable));
+  }
+
   @Operation(summary = "Cambiar estado de un pedido (ADMIN/CHEF)")
   @PatchMapping("/{id}/status")
   @PreAuthorize("hasRole('ADMIN') or hasRole('CHEF')")
