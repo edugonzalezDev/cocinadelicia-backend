@@ -14,6 +14,8 @@ public interface OrderService {
 
   OrderResponse getOrderById(Long orderId, Long appUserId);
 
+  Page<OrderResponse> getAllOrders(Pageable pageable);
+
   Page<OrderResponse> getMyOrders(Long appUserId, Pageable pageable);
 
   /** Cambia el estado de un pedido (uso interno admin/chef). */
