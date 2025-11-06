@@ -3,6 +3,7 @@ package com.cocinadelicia.backend.order.controller;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.order.dto.CreateOrderRequest;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
+import com.cocinadelicia.backend.order.dto.UpdateOrderStatusRequest;
 import com.cocinadelicia.backend.order.service.OrderService;
 import com.cocinadelicia.backend.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.*;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -112,6 +114,24 @@ public class OrderController {
           Pageable pageable) {
     Long appUserId = resolveAppUserId(jwt);
     return ResponseEntity.ok(orderService.getMyOrders(appUserId, pageable));
+  }
+
+  @Operation(summary = "Cambiar estado de un pedido (ADMIN/CHEF)")
+  @PatchMapping("/{id}/status")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('CHEF')")
+  public ResponseEntity<OrderResponse> updateStatus(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable Long id,
+      @Valid @RequestBody UpdateOrderStatusRequest body) {
+
+    // Para auditoría: preferimos email si está; sino sub
+    String performer = jwt.getClaimAsString("email");
+    if (performer == null || performer.isBlank()) {
+      performer = jwt.getSubject();
+    }
+
+    OrderResponse response = orderService.updateStatus(id, performer, body);
+    return ResponseEntity.ok(response);
   }
 
   private Long resolveAppUserId(Jwt jwt) {
