@@ -4,9 +4,11 @@ import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.model.enums.FulfillmentType;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
+import com.cocinadelicia.backend.order.domain.OrderStatusTransitionValidator;
 import com.cocinadelicia.backend.order.dto.CreateOrderRequest;
 import com.cocinadelicia.backend.order.dto.OrderItemRequest;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
+import com.cocinadelicia.backend.order.dto.UpdateOrderStatusRequest;
 import com.cocinadelicia.backend.order.mapper.OrderMapper;
 import com.cocinadelicia.backend.order.model.CustomerOrder;
 import com.cocinadelicia.backend.order.model.OrderItem;
@@ -24,10 +26,12 @@ import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+@Log4j2
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -187,6 +191,43 @@ public class OrderServiceImpl implements OrderService {
   @Override
   public Page<OrderResponse> getMyOrders(Long appUserId, Pageable pageable) {
     return customerOrderRepository.findByUser_Id(appUserId, pageable).map(OrderMapper::toResponse);
+  }
+
+  @Override
+  public OrderResponse updateStatus(
+      Long orderId, String performedBy, UpdateOrderStatusRequest request) {
+    if (request == null || request.status() == null) {
+      throw new BadRequestException("STATUS_REQUIRED", "El estado es obligatorio.");
+    }
+
+    CustomerOrder order =
+        customerOrderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new NotFoundException("ORDER_NOT_FOUND", "Pedido no encontrado."));
+
+    OrderStatus current = order.getStatus();
+    OrderStatus next = request.status();
+
+    // Validar transición
+    OrderStatusTransitionValidator.validateOrThrow(current, next);
+
+    // Aplicar cambio
+    order.setStatus(next);
+
+    // (Opcional) Agregar nota de auditoría si querés persistirla en el futuro
+    // Por ahora, dejamos la nota solo a nivel de log
+    CustomerOrder saved = customerOrderRepository.save(order);
+
+    // Logging de auditoría (INFO)
+    log.info(
+        "OrderStatusChanged orderId={} oldStatus={} newStatus={} by={} note={}",
+        saved.getId(),
+        current,
+        next,
+        performedBy,
+        request.note());
+
+    return OrderMapper.toResponse(saved);
   }
 
   // === Helpers ===
