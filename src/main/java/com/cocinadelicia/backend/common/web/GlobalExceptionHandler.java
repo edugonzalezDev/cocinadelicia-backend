@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.*;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +21,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-  // 1) Conflicto de email (caso que ya tenías)
+  // 1) Conflicto de email
   @ExceptionHandler(EmailConflictException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
   public ApiError handleEmailConflict(EmailConflictException ex, WebRequest request) {
@@ -27,7 +29,7 @@ public class GlobalExceptionHandler {
     return ApiError.of(HttpStatus.CONFLICT.value(), "Conflict", ex.getMessage(), getPath(request));
   }
 
-  // 2) Falta de email (caso que ya tenías)
+  // 2) Falta de email
   @ExceptionHandler(MissingEmailException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ApiError handleMissingEmail(MissingEmailException ex, WebRequest request) {
@@ -72,12 +74,45 @@ public class GlobalExceptionHandler {
         getPath(request));
   }
 
-  // 5) Fallback genérico (último recurso)
+  // 3.1) BadRequest de negocio — con code
+  @ExceptionHandler(BadRequestException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public ApiError handleBadRequest(BadRequestException ex, WebRequest request) {
+    log.info("BadRequest: {}", ex.getMessage());
+    return ApiError.of(
+        HttpStatus.BAD_REQUEST.value(),
+        "Bad Request",
+        ex.getMessage(),
+        getPath(request),
+        ex.code());
+  }
+
+  // 3.2) NotFound de negocio — con code
+  @ExceptionHandler(NotFoundException.class)
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  public ApiError handleNotFoundBusiness(NotFoundException ex, WebRequest request) {
+    log.warn("NotFound: {}", ex.getMessage());
+    return ApiError.of(
+        HttpStatus.NOT_FOUND.value(), "Not Found", ex.getMessage(), getPath(request), ex.code());
+  }
+
+  // ✅ 3.3) Access Denied (sin permisos) → 403
+  @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
+  @ResponseStatus(HttpStatus.FORBIDDEN)
+  public ApiError handleAccessDenied(Exception ex, WebRequest request) {
+    log.warn("AccessDenied on {}: {}", getPath(request), ex.getMessage());
+    return ApiError.of(
+        HttpStatus.FORBIDDEN.value(),
+        "Forbidden",
+        "No tiene permisos para realizar esta acción.",
+        getPath(request),
+        "ACCESS_DENIED");
+  }
+
+  // 5) Fallback genérico (último recurso) → 500
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiError> handleGeneric(Exception ex, WebRequest request) {
-    // 🔴 Esto sí lo queremos en ERROR
     log.error("Unexpected error on {}: {}", getPath(request), ex.getMessage(), ex);
-
     ApiError body =
         ApiError.of(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
@@ -87,38 +122,8 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
   }
 
-  // 3.1) BadRequest de negocio (ej: reglas del dominio) — AHORA CON CODE
-  @ExceptionHandler(BadRequestException.class)
-  @ResponseStatus(HttpStatus.BAD_REQUEST)
-  public ApiError handleBadRequest(BadRequestException ex, WebRequest request) {
-    log.info("BadRequest: {}", ex.getMessage());
-    // Si ex.code() es null, simplemente no se enviará un code en JSON (quedará null)
-    return ApiError.of(
-        HttpStatus.BAD_REQUEST.value(),
-        "Bad Request",
-        ex.getMessage(),
-        getPath(request),
-        ex.code() // <- NUEVO
-        );
-  }
-
-  // 3.2) NotFound de negocio (oculta existencia de recursos ajenos) — AHORA CON CODE
-  @ExceptionHandler(NotFoundException.class)
-  @ResponseStatus(HttpStatus.NOT_FOUND)
-  public ApiError handleNotFoundBusiness(NotFoundException ex, WebRequest request) {
-    log.warn("NotFound: {}", ex.getMessage());
-    return ApiError.of(
-        HttpStatus.NOT_FOUND.value(),
-        "Not Found",
-        ex.getMessage(),
-        getPath(request),
-        ex.code() // <- NUEVO
-        );
-  }
-
   private String getPath(WebRequest request) {
-    // Para no acoplar a HttpServletRequest directamente
-    String desc = request.getDescription(false); // algo como "uri=/api/pedidos/1"
+    String desc = request.getDescription(false); // "uri=/api/pedidos/1"
     return desc != null && desc.startsWith("uri=") ? desc.substring(4) : desc;
   }
 }

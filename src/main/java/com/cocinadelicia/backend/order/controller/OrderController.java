@@ -1,11 +1,10 @@
 package com.cocinadelicia.backend.order.controller;
 
-import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.order.dto.CreateOrderRequest;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
 import com.cocinadelicia.backend.order.dto.UpdateOrderStatusRequest;
 import com.cocinadelicia.backend.order.service.OrderService;
-import com.cocinadelicia.backend.user.repository.UserRepository;
+import com.cocinadelicia.backend.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.*;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -30,7 +29,7 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
   private final OrderService orderService;
-  private final UserRepository userRepository;
+  private final UserService userService;
 
   @Operation(
       summary = "Crear un pedido",
@@ -145,11 +144,6 @@ public class OrderController {
   }
 
   private Long resolveAppUserId(Jwt jwt) {
-    String sub = jwt.getClaim("sub");
-    return userRepository
-        .findByCognitoUserId(sub)
-        .map(u -> u.getId())
-        .orElseThrow(
-            () -> new NotFoundException("Usuario no registrado en app_user para sub=" + sub));
+    return userService.resolveUserIdFromJwt(jwt);
   }
 }
