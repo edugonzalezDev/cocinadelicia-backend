@@ -6,6 +6,7 @@ import com.cocinadelicia.backend.common.model.enums.FulfillmentType;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
 import com.cocinadelicia.backend.order.domain.OrderStatusTransitionValidator;
 import com.cocinadelicia.backend.order.dto.CreateOrderRequest;
+import com.cocinadelicia.backend.order.dto.OrderFilter;
 import com.cocinadelicia.backend.order.dto.OrderItemRequest;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
 import com.cocinadelicia.backend.order.dto.UpdateOrderStatusRequest;
@@ -15,6 +16,7 @@ import com.cocinadelicia.backend.order.model.OrderItem;
 import com.cocinadelicia.backend.order.port.PriceQueryPort;
 import com.cocinadelicia.backend.order.repository.CustomerOrderRepository;
 import com.cocinadelicia.backend.order.repository.OrderItemRepository;
+import com.cocinadelicia.backend.order.repository.spec.OrderSpecifications;
 import com.cocinadelicia.backend.order.service.OrderService;
 import com.cocinadelicia.backend.product.model.Product;
 import com.cocinadelicia.backend.product.model.ProductVariant;
@@ -29,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 @Log4j2
@@ -233,6 +236,44 @@ public class OrderServiceImpl implements OrderService {
         request.note());
 
     return OrderMapper.toResponse(saved);
+  }
+
+  @Override
+  public Page<OrderResponse> findOrders(OrderFilter filter, Pageable pageable) {
+    Specification<CustomerOrder> spec = Specification.allOf();
+
+    if (filter != null) {
+      if (filter.statuses() != null && !filter.statuses().isEmpty()) {
+        spec = spec.and(OrderSpecifications.statusIn(filter.statuses()));
+      }
+      // Fechas YYYY-MM-DD inclusivas → [from 00:00, to+1d 00:00) en zona app
+      java.time.ZoneId APP_ZONE = java.time.ZoneId.of("America/Montevideo");
+      java.time.Instant fromInstant = null;
+      java.time.Instant toExclusive = null;
+
+      if (filter.from() != null) {
+        fromInstant = filter.from().atStartOfDay(APP_ZONE).toInstant();
+        spec = spec.and(OrderSpecifications.createdAtGte(fromInstant));
+      }
+      if (filter.to() != null) {
+        toExclusive = filter.to().plusDays(1).atStartOfDay(APP_ZONE).toInstant();
+        spec = spec.and(OrderSpecifications.createdAtLt(toExclusive));
+      }
+      if (filter.userId() != null) {
+        spec = spec.and(OrderSpecifications.userIdEq(filter.userId()));
+      }
+    }
+    // fallback de orden si no viene en pageable
+    Pageable effective = pageable;
+    if (effective.getSort().isUnsorted()) {
+      effective =
+          org.springframework.data.domain.PageRequest.of(
+              pageable.getPageNumber(),
+              pageable.getPageSize(),
+              org.springframework.data.domain.Sort.by("createdAt").descending());
+    }
+
+    return customerOrderRepository.findAll(spec, effective).map(OrderMapper::toResponse);
   }
 
   // === Helpers ===
