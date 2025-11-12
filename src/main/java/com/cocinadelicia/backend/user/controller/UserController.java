@@ -1,27 +1,28 @@
+// src/main/java/com/cocinadelicia/backend/user/controller/UserController.java
 package com.cocinadelicia.backend.user.controller;
 
-import com.cocinadelicia.backend.user.dto.UserRegistrationDTO;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
-@Log4j2
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
+@Tag(name = "users", description = "Perfil del usuario autenticado")
+@SecurityRequirement(name = "bearer-jwt")
 public class UserController {
 
   private final UserService userService;
 
-  @PostMapping("/register")
-  @ResponseStatus(HttpStatus.OK) // 200 idempotente
-  public UserResponseDTO register(
-      @RequestBody(required = false) UserRegistrationDTO body, JwtAuthenticationToken auth) {
-    log.info("Register or update user called with body: {} and auth: {}", body, auth);
-    return userService.registerOrUpdateFromToken(body, auth);
+  @GetMapping("/me")
+  @Operation(summary = "Devuelve el perfil app_user del usuario autenticado (crea si no existe)")
+  public UserResponseDTO me(JwtAuthenticationToken auth) {
+    // Reutiliza tu registro/actualización centralizado
+    return userService.registerOrUpdateFromToken(null, auth);
   }
 }

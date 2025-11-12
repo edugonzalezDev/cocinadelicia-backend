@@ -8,6 +8,7 @@ import com.cocinadelicia.backend.order.dto.OrderPageResponse;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
 import com.cocinadelicia.backend.order.dto.UpdateOrderStatusRequest;
 import com.cocinadelicia.backend.order.service.OrderService;
+import com.cocinadelicia.backend.user.service.CurrentUserService;
 import com.cocinadelicia.backend.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -43,6 +44,7 @@ public class OrderController {
 
   private final OrderService orderService;
   private final UserService userService;
+  private final CurrentUserService currentUserService;
 
   // ---------- Cliente autenticado ----------
   @Operation(summary = "Crear un pedido")
@@ -52,8 +54,8 @@ public class OrderController {
       content = @Content(schema = @Schema(implementation = OrderResponse.class)))
   @PostMapping
   public ResponseEntity<OrderResponse> createOrder(
-      @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateOrderRequest request) {
-    Long appUserId = resolveAppUserId(jwt);
+    @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateOrderRequest request) {
+    Long appUserId = currentUserService.getOrCreateCurrentUserId(); // 👈 ahora crea si falta
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(orderService.createOrder(request, appUserId));
   }
@@ -62,7 +64,7 @@ public class OrderController {
   @GetMapping("/{id}")
   public ResponseEntity<OrderResponse> getOrderById(
       @AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
-    Long appUserId = resolveAppUserId(jwt);
+    Long appUserId = userService.resolveUserIdFromJwt(jwt);
     return ResponseEntity.ok(orderService.getOrderById(id, appUserId));
   }
 
@@ -73,7 +75,7 @@ public class OrderController {
       @ParameterObject
           @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
           Pageable pageable) {
-    Long appUserId = resolveAppUserId(jwt);
+    Long appUserId = currentUserService.getOrCreateCurrentUserId();
     return ResponseEntity.ok(orderService.getMyOrders(appUserId, pageable));
   }
 
