@@ -3,30 +3,83 @@ package com.cocinadelicia.backend.order.dto;
 import com.cocinadelicia.backend.common.model.enums.CurrencyCode;
 import com.cocinadelicia.backend.common.model.enums.FulfillmentType;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+@Schema(description = "Respuesta estándar de un pedido")
 public record OrderResponse(
-    Long id,
-    OrderStatus status,
-    FulfillmentType fulfillment,
-    CurrencyCode currency,
-    BigDecimal subtotalAmount,
-    BigDecimal taxAmount,
-    BigDecimal discountAmount,
-    BigDecimal totalAmount,
 
-    // Snapshot envío (si DELIVERY)
-    String shipName,
-    String shipPhone,
-    String shipLine1,
-    String shipLine2,
-    String shipCity,
-    String shipRegion,
-    String shipPostalCode,
-    String shipReference,
-    String notes,
-    List<OrderItemResponse> items,
-    Instant createdAt,
-    Instant updatedAt) {}
+  @Schema(description = "Id del pedido", example = "42")
+  Long id,
+
+  @Schema(
+    description = "Estado actual del pedido",
+    example = "CREATED",
+    allowableValues = {
+      "CREATED", "CONFIRMED", "PREPARING", "READY",
+      "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"
+    }
+  )
+  OrderStatus status,
+
+  @Schema(
+    description = "Tipo de cumplimiento del pedido",
+    example = "DELIVERY",
+    allowableValues = {"PICKUP", "DELIVERY"}
+  )
+  FulfillmentType fulfillment,
+
+  @Schema(description = "Moneda del pedido", example = "UYU")
+  CurrencyCode currency,
+
+  @Schema(description = "Subtotal del pedido", example = "900.00")
+  BigDecimal subtotalAmount,
+
+  @Schema(description = "Impuestos aplicados", example = "0.00")
+  BigDecimal taxAmount,
+
+  @Schema(description = "Descuentos aplicados", example = "0.00")
+  BigDecimal discountAmount,
+
+  @Schema(description = "Total final del pedido", example = "900.00")
+  BigDecimal totalAmount,
+
+  // Snapshot envío (si DELIVERY)
+  @Schema(description = "Nombre de la persona que recibe el envío", example = "Juan Pérez")
+  String shipName,
+
+  @Schema(description = "Teléfono de contacto del envío", example = "099123456")
+  String shipPhone,
+
+  @Schema(description = "Dirección línea 1", example = "Av. Siempre Viva 742")
+  String shipLine1,
+
+  @Schema(description = "Dirección línea 2 (opcional)", example = "Apartamento 201")
+  String shipLine2,
+
+  @Schema(description = "Ciudad del envío", example = "Montevideo")
+  String shipCity,
+
+  @Schema(description = "Región / Departamento", example = "Canelones")
+  String shipRegion,
+
+  @Schema(description = "Código postal", example = "15000")
+  String shipPostalCode,
+
+  @Schema(description = "Referencia adicional para el envío", example = "Portón negro, timbre rojo")
+  String shipReference,
+
+  @Schema(description = "Notas del pedido", example = "Entregar entre 20:00 y 20:30")
+  String notes,
+
+  @Schema(description = "Ítems del pedido")
+  List<OrderItemResponse> items,
+
+  @Schema(description = "Fecha de creación del pedido (UTC)", example = "2025-11-12T14:32:10Z")
+  Instant createdAt,
+
+  @Schema(description = "Fecha de última actualización del pedido (UTC)", example = "2025-11-12T15:10:00Z")
+  Instant updatedAt
+) {}

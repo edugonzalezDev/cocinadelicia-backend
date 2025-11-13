@@ -36,3 +36,7 @@ management:
 cognito:
   # valor por defecto, lo sobreescriben los profiles
   domain: ${COGNITO_DOMAIN:cdd-auth.auth.us-east-1.amazoncognito.com}
+
+springdoc:
+  swagger-ui:
+    urlsPrimaryName: public
