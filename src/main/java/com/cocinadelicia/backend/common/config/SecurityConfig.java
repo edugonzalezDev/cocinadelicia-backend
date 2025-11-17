@@ -18,7 +18,6 @@ import org.springframework.web.cors.*;
 
 @Configuration
 @EnableMethodSecurity
-// ⚠️ SIN @Profile aquí, así aplica en dev y prod
 class SecurityConfig {
 
   @Value("${cdd.security.groups-claim:cognito:groups}")
@@ -30,52 +29,54 @@ class SecurityConfig {
   @Bean
   SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
     http
-        // 👇 Habilita CORS (usará el bean CorsConfigurationSource)
-        .cors(cors -> {})
-        .csrf(csrf -> csrf.disable())
-        .headers(h -> h.frameOptions(frame -> frame.sameOrigin())) // H2 en dev
-        .authorizeHttpRequests(
-            auth ->
-                auth
-                    // 👇 MUY IMPORTANTE: dejar pasar preflight
-                    .requestMatchers(HttpMethod.OPTIONS, "/**")
-                    .permitAll()
+      .cors(cors -> {})
+      .csrf(csrf -> csrf.disable())
+      .headers(h -> h.frameOptions(frame -> frame.sameOrigin())) // H2 en dev
+      .authorizeHttpRequests(
+        auth ->
+          auth
+            .requestMatchers(HttpMethod.OPTIONS, "/**")
+            .permitAll()
 
-                    // públicos
-                    .requestMatchers(
-                        "/actuator/health",
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/h2-console/**")
-                    .permitAll()
+            // públicos
+            .requestMatchers(
+              "/actuator/health",
+              "/v3/api-docs/**",
+              "/swagger-ui/**",
+              "/swagger-ui.html",
+              "/h2-console/**")
+            .permitAll()
 
-                    // Admin-only
-                    .requestMatchers("/admin/**")
-                    .hasRole("ADMIN")
-                    // Chef o Admin
-                    .requestMatchers("/chef/**")
-                    .hasAnyRole("CHEF", "ADMIN")
+            // 🔴 WebSocket/SockJS handshake: lo dejamos pasar, JWT se valida en STOMP
+            .requestMatchers("/ws/**")
+            .permitAll()
 
-                    // Tu API (requiere token)
-                    .requestMatchers("/api/**")
-                    .authenticated()
+            // Admin-only
+            .requestMatchers("/admin/**")
+            .hasRole("ADMIN")
+            // Chef o Admin
+            .requestMatchers("/chef/**")
+            .hasAnyRole("CHEF", "ADMIN")
 
-                    // resto denegado
-                    .anyRequest()
-                    .denyAll())
-        .oauth2ResourceServer(
-            oauth2 ->
-                oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+            // Tu API (requiere token)
+            .requestMatchers("/api/**")
+            .authenticated()
+
+            .anyRequest()
+            .denyAll())
+      .oauth2ResourceServer(
+        oauth2 ->
+          oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
     return http.build();
   }
 
-  private JwtAuthenticationConverter jwtAuthenticationConverter() {
+  // 🔴 AHORA ES @Bean → reutilizable desde WebSocket
+  @Bean
+  JwtAuthenticationConverter jwtAuthenticationConverter() {
     var converter = new JwtAuthenticationConverter();
     converter.setJwtGrantedAuthoritiesConverter(
-        jwt -> (Collection<GrantedAuthority>) extractAuthoritiesFromJwt(jwt));
-
+      jwt -> (Collection<GrantedAuthority>) extractAuthoritiesFromJwt(jwt));
     return converter;
   }
 
@@ -83,14 +84,14 @@ class SecurityConfig {
     List<String> groups = jwt.getClaimAsStringList(groupsClaim);
     if (groups == null) groups = List.of();
     var roles =
-        groups.stream()
-            .map(g -> new SimpleGrantedAuthority("ROLE_" + g.toUpperCase()))
-            .collect(Collectors.toList());
+      groups.stream()
+        .map(g -> new SimpleGrantedAuthority("ROLE_" + g.toUpperCase()))
+        .collect(Collectors.toList());
 
     if (requiredAudience != null && !requiredAudience.isBlank()) {
       List<String> aud = jwt.getAudience();
       if (aud == null || !aud.contains(requiredAudience)) {
-        // opción: lanzar excepción si querés “fallar duro”
+        // podrías loguear o lanzar excepción si querés “fallar duro”
       }
     }
     return roles;
@@ -99,17 +100,20 @@ class SecurityConfig {
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cors = new CorsConfiguration();
-    // Para dev es más práctico usar patterns por puerto
     cors.setAllowedOriginPatterns(
-        List.of(
-            "http://localhost:*",
-            "https://www.lacocinadelicia.com",
-            "https://cocinadelicia-frontend.netlify.app/"));
+      List.of(
+        "http://localhost:*",
+        "http://127.0.0.1:*",
+        "https://www.lacocinadelicia.com",
+        "https://cocinadelicia-frontend.netlify.app"));
     cors.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     cors.setAllowedHeaders(
-        Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+      Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
     cors.setExposedHeaders(List.of("Location"));
-    cors.setAllowCredentials(false);
+
+    // 🔴 Necesario para SockJS con credenciales
+    cors.setAllowCredentials(true);
+
     cors.setMaxAge(3600L);
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -117,3 +121,4 @@ class SecurityConfig {
     return source;
   }
 }
+
