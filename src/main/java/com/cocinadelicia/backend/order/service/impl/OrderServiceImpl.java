@@ -33,6 +33,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import com.cocinadelicia.backend.order.events.OrderWebSocketPublisher;
+
 
 @Log4j2
 @Service
@@ -47,6 +49,8 @@ public class OrderServiceImpl implements OrderService {
   private final CustomerOrderRepository customerOrderRepository;
   private final OrderItemRepository orderItemRepository; // no se usa explícitamente
   private final PriceQueryPort priceQueryPort;
+
+  private final OrderWebSocketPublisher orderWebSocketPublisher;
 
   private static final BigDecimal ZERO = new BigDecimal("0.00");
 
@@ -171,7 +175,10 @@ public class OrderServiceImpl implements OrderService {
     // 7️⃣ Persistir (Cascade guarda items)
     CustomerOrder saved = customerOrderRepository.save(order);
 
-    // 8️⃣ Logging de auditoría (INFO)
+    // 8️⃣ Armar respuesta DTO (canónica)
+    OrderResponse response = OrderMapper.toResponse(saved);
+
+    // 9️⃣ Logging de auditoría (INFO)
     log.info(
       "OrderCreated orderId={} userId={} userEmail={} fulfillment={} items={} total={}",
       saved.getId(),
@@ -182,8 +189,12 @@ public class OrderServiceImpl implements OrderService {
       saved.getTotalAmount()
     );
 
-    // 9️⃣ Devolver respuesta DTO
-    return OrderMapper.toResponse(saved);
+    // 1️⃣0️⃣ Publicar evento en tiempo real
+    orderWebSocketPublisher.publishOrderUpdated(response);
+
+    // 1️⃣1️⃣ Devolver respuesta DTO
+    return response;
+
 
   }
 
@@ -249,6 +260,9 @@ public class OrderServiceImpl implements OrderService {
     order.setStatus(next);
     CustomerOrder saved = customerOrderRepository.save(order);
 
+    // ✅ Armar respuesta DTO (canónica)
+    OrderResponse response = OrderMapper.toResponse(saved);
+
     // ✅ Logging de auditoría (INFO)
     log.info(
       "OrderStatusChanged orderId={} oldStatus={} newStatus={} by={} note={}",
@@ -258,7 +272,11 @@ public class OrderServiceImpl implements OrderService {
       performedBy,
       request.note());
 
-    return OrderMapper.toResponse(saved);
+    // Publicar evento en tiempo real
+    orderWebSocketPublisher.publishOrderUpdated(response);
+
+    return response;
+
   }
 
 
