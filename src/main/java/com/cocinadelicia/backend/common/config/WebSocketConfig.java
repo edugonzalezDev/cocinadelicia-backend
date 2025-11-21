@@ -27,7 +27,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     "http://localhost:*",
                     "http://127.0.0.1:*",
                     "https://*.onrender.com",
-                    "https://*.lacocinadelicia.com"
+                    "https://*.lacocinadelicia.com",
+                    "https://cocinadelicia-frontend.netlify.app"
             )
             .withSockJS();
   }
