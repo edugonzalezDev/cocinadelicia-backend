@@ -17,7 +17,7 @@ spring:
   jpa:
     hibernate:
 #      ddl-auto: none          # seguimos dejando Flyway como owner del schema
-    ddl-auto: create-drop  # en dev cloud podemos recrear la BD en cada arranque
+    ddl-auto: none  # en dev cloud podemos recrear la BD en cada arranque
     show-sql: true            # en dev cloud conviene ver SQL
     properties:
       hibernate:
