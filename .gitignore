@@ -1,5 +1,9 @@
 HELP.md
 target/
+backend-snippets/
+zips/
+*.zip
+generate_backend_snippets.sh
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

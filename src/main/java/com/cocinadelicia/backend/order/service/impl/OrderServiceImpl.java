@@ -33,6 +33,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import com.cocinadelicia.backend.order.events.OrderWebSocketPublisher;
+
 
 @Log4j2
 @Service
@@ -47,6 +49,8 @@ public class OrderServiceImpl implements OrderService {
   private final CustomerOrderRepository customerOrderRepository;
   private final OrderItemRepository orderItemRepository; // no se usa explícitamente
   private final PriceQueryPort priceQueryPort;
+
+  private final OrderWebSocketPublisher orderWebSocketPublisher;
 
   private static final BigDecimal ZERO = new BigDecimal("0.00");
 
@@ -171,8 +175,27 @@ public class OrderServiceImpl implements OrderService {
     // 7️⃣ Persistir (Cascade guarda items)
     CustomerOrder saved = customerOrderRepository.save(order);
 
-    // 8️⃣ Devolver respuesta DTO
-    return OrderMapper.toResponse(saved);
+    // 8️⃣ Armar respuesta DTO (canónica)
+    OrderResponse response = OrderMapper.toResponse(saved);
+
+    // 9️⃣ Logging de auditoría (INFO)
+    log.info(
+      "OrderCreated orderId={} userId={} userEmail={} fulfillment={} items={} total={}",
+      saved.getId(),
+      user.getId(),
+      user.getEmail(),
+      saved.getFulfillment(),
+      saved.getItems() != null ? saved.getItems().size() : 0,
+      saved.getTotalAmount()
+    );
+
+    // 1️⃣0️⃣ Publicar evento en tiempo real
+    orderWebSocketPublisher.publishOrderUpdated(response);
+
+    // 1️⃣1️⃣ Devolver respuesta DTO
+    return response;
+
+
   }
 
   // ==== Métodos de lectura ====
@@ -203,40 +226,59 @@ public class OrderServiceImpl implements OrderService {
 
   @Override
   public OrderResponse updateStatus(
-      Long orderId, String performedBy, UpdateOrderStatusRequest request) {
+    Long orderId, String performedBy, UpdateOrderStatusRequest request) {
+
     if (request == null || request.status() == null) {
       throw new BadRequestException("STATUS_REQUIRED", "El estado es obligatorio.");
     }
 
     CustomerOrder order =
-        customerOrderRepository
-            .findById(orderId)
-            .orElseThrow(() -> new NotFoundException("ORDER_NOT_FOUND", "Pedido no encontrado."));
+      customerOrderRepository
+        .findById(orderId)
+        .orElseThrow(() -> new NotFoundException("ORDER_NOT_FOUND", "Pedido no encontrado."));
 
     OrderStatus current = order.getStatus();
     OrderStatus next = request.status();
 
-    // Validar transición
-    OrderStatusTransitionValidator.validateOrThrow(current, next);
-
-    // Aplicar cambio
-    order.setStatus(next);
-
-    // (Opcional) Agregar nota de auditoría si querés persistirla en el futuro
-    // Por ahora, dejamos la nota solo a nivel de log
-    CustomerOrder saved = customerOrderRepository.save(order);
-
-    // Logging de auditoría (INFO)
-    log.info(
-        "OrderStatusChanged orderId={} oldStatus={} newStatus={} by={} note={}",
-        saved.getId(),
+    // ✅ Validar transición con logging de WARN si falla
+    try {
+      OrderStatusTransitionValidator.validateOrThrow(current, next);
+    } catch (BadRequestException ex) {
+      // IMPORTANTE: logueamos con contexto de dominio
+      log.warn(
+        "InvalidOrderStatusTransition orderId={} from={} to={} by={} reason={} code={}",
+        order.getId(),
         current,
         next,
         performedBy,
-        request.note());
+        ex.getMessage(),
+        ex.code());
+      throw ex; // sigue al GlobalExceptionHandler → 400 JSON
+    }
 
-    return OrderMapper.toResponse(saved);
+    // ✅ Transición válida → aplicar cambio
+    order.setStatus(next);
+    CustomerOrder saved = customerOrderRepository.save(order);
+
+    // ✅ Armar respuesta DTO (canónica)
+    OrderResponse response = OrderMapper.toResponse(saved);
+
+    // ✅ Logging de auditoría (INFO)
+    log.info(
+      "OrderStatusChanged orderId={} oldStatus={} newStatus={} by={} note={}",
+      saved.getId(),
+      current,
+      next,
+      performedBy,
+      request.note());
+
+    // Publicar evento en tiempo real
+    orderWebSocketPublisher.publishOrderUpdated(response);
+
+    return response;
+
   }
+
 
   @Override
   public Page<OrderResponse> findOrders(OrderFilter filter, Pageable pageable) {
