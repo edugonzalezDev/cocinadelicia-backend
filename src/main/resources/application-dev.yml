@@ -31,7 +31,6 @@ spring:
     baseline-on-migrate: false
     validate-on-migrate: true
     clean-disabled: false     # en dev podés permitir limpiar si querés
-    clean-on-validation-error: true
 
   security:
     oauth2:
