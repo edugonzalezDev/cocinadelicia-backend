@@ -58,6 +58,14 @@ class SecurityConfig {
             .requestMatchers("/chef/**")
             .hasAnyRole("CHEF", "ADMIN")
 
+            // Endpoints de pedidos para staff (ops/admin/chef)
+            .requestMatchers(
+              "/api/orders/ops/**",
+              "/api/orders/admin/**",
+              "/api/orders/chef/**"
+            )
+            .hasAnyRole("CHEF", "ADMIN")
+
             // Tu API (requiere token)
             .requestMatchers("/api/**")
             .authenticated()
