@@ -1,5 +1,11 @@
 server:
-  port: 8080
+  port: 8443
+  ssl:
+    enabled: true
+    key-store: classpath:ssl/cdd-local.p12
+    key-store-password: changeit123   # <= usa el password que pusiste en keytool
+    key-store-type: PKCS12
+    key-alias: cdd-local
 
 spring:
   h2:
@@ -40,7 +46,7 @@ cdd:
 app:
   openapi:
     server:
-      dev: http://localhost:8080
+      dev: https://192.168.1.7:8443
       prod: https://api.lacocinadelicia.com
 
 logging:

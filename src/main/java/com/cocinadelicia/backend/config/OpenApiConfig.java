@@ -25,77 +25,56 @@ public class OpenApiConfig {
 
   @Bean
   public OpenAPI cocinaDeLiciaOpenAPI(
-    @Value("${spring.application.name:CocinaDeLicia}") String appName,
-    @Value("${app.version:v1.0.0}") String appVersion) {
+      @Value("${spring.application.name:CocinaDeLicia}") String appName,
+      @Value("${app.version:v1.0.0}") String appVersion) {
 
     final String securitySchemeName = "bearer-jwt";
 
     return new OpenAPI()
-      .info(
-        new Info()
-          .title(appName + " – API")
-          .description(
-            "APIs del backend (Pedidos, Productos, Usuarios, etc.). "
-              + "Documentación generada automáticamente con Springdoc OpenAPI.")
-          .version(appVersion)
-          .contact(
-            new Contact()
-              .name("Cocina DeLicia")
-              .email("soporte@lacocinadelicia.com")))
-      .servers(
-        List.of(
-          new Server().url(devServerUrl).description("Desarrollo"),
-          new Server().url(prodServerUrl).description("Producción")))
-      .externalDocs(
-        new ExternalDocumentation()
-          .description("Convenciones & Sprints")
-          .url("https://tu-docs-o-notion"))
-      // ⬇️ Seguridad: esquema Bearer y requirement por defecto
-      .components(
-        new Components()
-          .addSecuritySchemes(
-            securitySchemeName,
-            new SecurityScheme()
-              .name(securitySchemeName)
-              .type(SecurityScheme.Type.HTTP)
-              .scheme("bearer")
-              .bearerFormat("JWT")))
-      .addSecurityItem(new SecurityRequirement().addList(securitySchemeName));
+        .info(
+            new Info()
+                .title(appName + " – API")
+                .description(
+                    "APIs del backend (Pedidos, Productos, Usuarios, etc.). "
+                        + "Documentación generada automáticamente con Springdoc OpenAPI.")
+                .version(appVersion)
+                .contact(new Contact().name("Cocina DeLicia").email("soporte@lacocinadelicia.com")))
+        .servers(
+            List.of(
+                new Server().url(devServerUrl).description("Desarrollo"),
+                new Server().url(prodServerUrl).description("Producción")))
+        .externalDocs(
+            new ExternalDocumentation()
+                .description("Convenciones & Sprints")
+                .url("https://tu-docs-o-notion"))
+        // ⬇️ Seguridad: esquema Bearer y requirement por defecto
+        .components(
+            new Components()
+                .addSecuritySchemes(
+                    securitySchemeName,
+                    new SecurityScheme()
+                        .name(securitySchemeName)
+                        .type(SecurityScheme.Type.HTTP)
+                        .scheme("bearer")
+                        .bearerFormat("JWT")))
+        .addSecurityItem(new SecurityRequirement().addList(securitySchemeName));
   }
 
-  /**
-   * Grupo general: muestra todos los endpoints bajo /api/**.
-   * Útil como vista completa.
-   */
+  /** Grupo general: muestra todos los endpoints bajo /api/**. Útil como vista completa. */
   @Bean
   public GroupedOpenApi publicApi() {
-    return GroupedOpenApi.builder()
-      .group("public")
-      .pathsToMatch("/api/**")
-      .build();
+    return GroupedOpenApi.builder().group("public").pathsToMatch("/api/**").build();
   }
 
-  /**
-   * Grupo específico para endpoints de pedidos.
-   * Filtra por path /api/orders/**.
-   */
+  /** Grupo específico para endpoints de pedidos. Filtra por path /api/orders/**. */
   @Bean
   public GroupedOpenApi ordersApi() {
-    return GroupedOpenApi.builder()
-      .group("orders")
-      .pathsToMatch("/api/orders/**")
-      .build();
+    return GroupedOpenApi.builder().group("orders").pathsToMatch("/api/orders/**").build();
   }
 
-  /**
-   * Grupo específico para endpoints de usuarios.
-   * Filtra por path /api/users/**.
-   */
+  /** Grupo específico para endpoints de usuarios. Filtra por path /api/users/**. */
   @Bean
   public GroupedOpenApi usersApi() {
-    return GroupedOpenApi.builder()
-      .group("users")
-      .pathsToMatch("/api/users/**")
-      .build();
+    return GroupedOpenApi.builder().group("users").pathsToMatch("/api/users/**").build();
   }
 }

@@ -2,5 +2,5 @@
 package com.cocinadelicia.backend.user.service;
 
 public interface CurrentUserService {
-    Long getOrCreateCurrentUserId(); // id en app_user
+  Long getOrCreateCurrentUserId(); // id en app_user
 }

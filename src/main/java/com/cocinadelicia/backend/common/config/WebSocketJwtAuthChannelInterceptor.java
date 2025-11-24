@@ -1,5 +1,6 @@
 package com.cocinadelicia.backend.common.config;
 
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.messaging.*;
@@ -15,8 +16,6 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.util.List;
-
 @Log4j2
 @Component
 @RequiredArgsConstructor
@@ -28,7 +27,7 @@ public class WebSocketJwtAuthChannelInterceptor implements ChannelInterceptor {
   @Override
   public Message<?> preSend(Message<?> message, MessageChannel channel) {
     StompHeaderAccessor accessor =
-      MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
     if (accessor == null) {
       return message;
@@ -37,9 +36,8 @@ public class WebSocketJwtAuthChannelInterceptor implements ChannelInterceptor {
     // Solo nos interesa el frame CONNECT
     if (StompCommand.CONNECT.equals(accessor.getCommand())) {
       List<String> authHeaders = accessor.getNativeHeader("Authorization");
-      String authHeader = (authHeaders != null && !authHeaders.isEmpty())
-        ? authHeaders.get(0)
-        : null;
+      String authHeader =
+          (authHeaders != null && !authHeaders.isEmpty()) ? authHeaders.get(0) : null;
 
       if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
         log.warn("[WS] CONNECT sin Authorization Bearer: headers={}", authHeaders);

@@ -2,8 +2,8 @@ package com.cocinadelicia.backend.common.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.messaging.simp.config.ChannelRegistration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.*;
 
 @Configuration
@@ -22,15 +22,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
   @Override
   public void registerStompEndpoints(StompEndpointRegistry registry) {
     registry
-            .addEndpoint("/ws")
-            .setAllowedOriginPatterns(
-                    "http://localhost:*",
-                    "http://127.0.0.1:*",
-                    "https://*.onrender.com",
-                    "https://*.lacocinadelicia.com",
-                    "https://cocinadelicia-frontend.netlify.app"
-            )
-            .withSockJS();
+        .addEndpoint("/ws")
+        .setAllowedOriginPatterns(
+            "http://localhost:*",
+            "https://localhost:*",
+            "https://192.168.1.7:*",
+            "http://127.0.0.1:*",
+            "https://*.onrender.com",
+            "https://*.lacocinadelicia.com",
+            "https://cocinadelicia-frontend.netlify.app")
+        .withSockJS();
   }
 
   @Override

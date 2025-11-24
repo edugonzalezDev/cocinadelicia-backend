@@ -10,7 +10,6 @@ import java.util.List;
 
 @Schema(description = "Respuesta estándar de un pedido")
 public record OrderResponse(
-
   @Schema(description = "Id del pedido", example = "42")
   Long id,
 
@@ -18,17 +17,20 @@ public record OrderResponse(
     description = "Estado actual del pedido",
     example = "CREATED",
     allowableValues = {
-      "CREATED", "CONFIRMED", "PREPARING", "READY",
-      "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"
-    }
-  )
+      "CREATED",
+      "CONFIRMED",
+      "PREPARING",
+      "READY",
+      "OUT_FOR_DELIVERY",
+      "DELIVERED",
+      "CANCELED"
+    })
   OrderStatus status,
 
   @Schema(
     description = "Tipo de cumplimiento del pedido",
     example = "DELIVERY",
-    allowableValues = {"PICKUP", "DELIVERY"}
-  )
+    allowableValues = {"PICKUP", "DELIVERY"})
   FulfillmentType fulfillment,
 
   @Schema(description = "Moneda del pedido", example = "UYU")
@@ -46,7 +48,7 @@ public record OrderResponse(
   @Schema(description = "Total final del pedido", example = "900.00")
   BigDecimal totalAmount,
 
-  // Snapshot envío (si DELIVERY)
+  // Snapshot de envío
   @Schema(description = "Nombre de la persona que recibe el envío", example = "Juan Pérez")
   String shipName,
 
@@ -68,11 +70,23 @@ public record OrderResponse(
   @Schema(description = "Código postal", example = "15000")
   String shipPostalCode,
 
-  @Schema(description = "Referencia adicional para el envío", example = "Portón negro, timbre rojo")
+  @Schema(
+    description = "Referencia adicional para el envío",
+    example = "Portón negro, timbre rojo")
   String shipReference,
 
   @Schema(description = "Notas del pedido", example = "Entregar entre 20:00 y 20:30")
   String notes,
+
+  @Schema(
+    description = "Fecha/hora deseada de entrega o retiro (UTC)",
+    example = "2025-11-22T20:30:00Z")
+  Instant requestedAt,
+
+  @Schema(
+    description = "Fecha/hora real de entrega (UTC), solo se completa cuando status = DELIVERED",
+    example = "2025-11-22T20:52:00Z")
+  Instant deliveredAt,
 
   @Schema(description = "Ítems del pedido")
   List<OrderItemResponse> items,
@@ -80,6 +94,8 @@ public record OrderResponse(
   @Schema(description = "Fecha de creación del pedido (UTC)", example = "2025-11-12T14:32:10Z")
   Instant createdAt,
 
-  @Schema(description = "Fecha de última actualización del pedido (UTC)", example = "2025-11-12T15:10:00Z")
+  @Schema(
+    description = "Fecha de última actualización del pedido (UTC)",
+    example = "2025-11-12T15:10:00Z")
   Instant updatedAt
 ) {}
