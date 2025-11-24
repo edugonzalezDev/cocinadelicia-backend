@@ -24,6 +24,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,6 +38,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+@Log4j2
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
@@ -123,14 +125,19 @@ public class OrderController {
 
   // ---------- Staff (ADMIN o CHEF) ----------
   @Operation(
-      summary = "Listar pedidos con filtros (ADMIN o CHEF)",
+      summary = "Listar pedidos para backoffice / vista Chef",
       description =
           """
-        Lista paginada de pedidos para backoffice. Requiere rol ADMIN o CHEF.
-        Filtros opcionales:
-        - status: lista CSV de estados (CREATED, PREPARING, READY, etc.)
-        - from / to: fechas YYYY-MM-DD (ambas inclusivas).
-        """,
+      Lista paginada de pedidos para backoffice (Admin/Chef).
+
+      Casos de uso:
+      - Vista administrativa general.
+      - Vista de Chef con filtros por estado y fecha.
+
+      Filtros opcionales:
+      - status: lista CSV de estados (CREATED, PREPARING, READY, etc.).
+      - from / to: fechas YYYY-MM-DD (ambas inclusivas, zona America/Montevideo).
+      """,
       responses = {
         @ApiResponse(
             responseCode = "200",
@@ -143,29 +150,54 @@ public class OrderController {
         @ApiResponse(
             responseCode = "403",
             description = "Sin permisos (requiere rol ADMIN o CHEF)",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
       })
   @GetMapping({"/ops", "/admin", "/chef"})
   @PreAuthorize("hasRole('ADMIN') or hasRole('CHEF')")
   public ResponseEntity<OrderPageResponse<OrderResponse>> listForBackoffice(
+      @AuthenticationPrincipal Jwt jwt,
       @Parameter(
               description =
-                  "Estados CSV. Ej: CREATED,PREPARING,READY. Usa valores del enum OrderStatus.")
+                  "Estados CSV. Ej: CREATED,PREPARING,READY. Usa valores del enum OrderStatus.",
+              example = "PREPARING,READY")
           @RequestParam(name = "status", required = false)
           String statusCsv,
-      @Parameter(description = "Fecha desde (inclusive), formato YYYY-MM-DD. Ej: 2025-11-01")
+      @Parameter(
+              description = "Fecha desde (inclusive), formato YYYY-MM-DD.",
+              example = "2025-11-01")
           @RequestParam(name = "from", required = false)
           String fromStr,
-      @Parameter(description = "Fecha hasta (inclusive), formato YYYY-MM-DD. Ej: 2025-11-30")
+      @Parameter(
+              description = "Fecha hasta (inclusive), formato YYYY-MM-DD.",
+              example = "2025-11-30")
           @RequestParam(name = "to", required = false)
           String toStr,
       @ParameterObject
           @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
           Pageable pageable) {
+
     Pageable safe = safePageable(pageable, 50);
     List<OrderStatus> statuses = parseStatuses(statusCsv);
     LocalDate from = parseDate(fromStr);
     LocalDate to = parseDate(toStr);
+
+    String performer = jwt.getClaimAsString("email");
+    if (performer == null || performer.isBlank()) {
+      performer = jwt.getSubject();
+    }
+
+    log.info(
+        "ChefOrdersList performer={} statusFilter={} from={} to={} page={} size={}",
+        performer,
+        statuses,
+        from,
+        to,
+        safe.getPageNumber(),
+        safe.getPageSize());
 
     var filter = new OrderFilter(statuses, from, to, null);
     var page = orderService.findOrders(filter, safe);
@@ -173,52 +205,62 @@ public class OrderController {
   }
 
   @Operation(
-      summary = "Cambiar estado de un pedido (ADMIN o CHEF)",
-      description =
-          """
-        Cambia el estado de un pedido existente. Requiere rol ADMIN o CHEF.
-        Estados válidos (enum OrderStatus):
-        - CREATED
-        - CONFIRMED
-        - PREPARING
-        - READY
-        - OUT_FOR_DELIVERY
-        - DELIVERED
-        - CANCELED
+    summary = "Cambiar estado de un pedido (ADMIN o CHEF)",
+    description =
+      """
+      Cambia el estado de un pedido existente. Requiere rol ADMIN o CHEF.
 
-        Las transiciones válidas se validan en el backend
-        (por ejemplo, CREATED -> PREPARING, READY -> DELIVERED, etc.).
-        """,
-      responses = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "Estado actualizado correctamente",
-            content = @Content(schema = @Schema(implementation = OrderResponse.class))),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Transición inválida o request inválido",
-            content = @Content(schema = @Schema(implementation = ApiError.class))),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Pedido no encontrado",
-            content = @Content(schema = @Schema(implementation = ApiError.class))),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos (requiere rol ADMIN o CHEF)",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-      })
+      Estados válidos (enum OrderStatus):
+      - CREATED
+      - CONFIRMED
+      - PREPARING
+      - READY
+      - OUT_FOR_DELIVERY
+      - DELIVERED
+      - CANCELED
+
+      Las transiciones válidas se validan en el backend.
+      Ejemplos típicos:
+      - CREATED -> PREPARING (válida)
+      - PREPARING -> READY (válida)
+      - READY -> DELIVERED (válida)
+      - CREATED -> DELIVERED (inválida → 400 INVALID_STATUS_TRANSITION)
+      """,
+    responses = {
+      @ApiResponse(
+        responseCode = "200",
+        description = "Estado actualizado correctamente",
+        content = @Content(schema = @Schema(implementation = OrderResponse.class))),
+      @ApiResponse(
+        responseCode = "400",
+        description = "Transición inválida o request inválido",
+        content = @Content(schema = @Schema(implementation = ApiError.class))),
+      @ApiResponse(
+        responseCode = "404",
+        description = "Pedido no encontrado",
+        content = @Content(schema = @Schema(implementation = ApiError.class))),
+      @ApiResponse(
+        responseCode = "403",
+        description = "Sin permisos (requiere rol ADMIN o CHEF)",
+        content = @Content(schema = @Schema(implementation = ApiError.class))),
+      @ApiResponse(
+        responseCode = "401",
+        description = "No autenticado",
+        content = @Content(schema = @Schema(implementation = ApiError.class)))
+    })
   @PatchMapping("/{id}/status")
   @PreAuthorize("hasRole('ADMIN') or hasRole('CHEF')")
   public ResponseEntity<OrderResponse> updateStatus(
-      @AuthenticationPrincipal Jwt jwt,
-      @PathVariable Long id,
-      @Valid @RequestBody UpdateOrderStatusRequest body) {
+    @AuthenticationPrincipal Jwt jwt,
+    @PathVariable Long id,
+    @Valid @RequestBody UpdateOrderStatusRequest body) {
     String performer = jwt.getClaimAsString("email");
     if (performer == null || performer.isBlank()) {
       performer = jwt.getSubject();
     }
     return ResponseEntity.ok(orderService.updateStatus(id, performer, body));
   }
+
 
   // ---------- Helpers ----------
   private Long resolveAppUserId(Jwt jwt) {
