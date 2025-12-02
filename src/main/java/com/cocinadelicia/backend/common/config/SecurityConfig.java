@@ -62,6 +62,8 @@ class SecurityConfig {
                     .hasAnyRole("CHEF", "ADMIN")
 
                     // Tu API (requiere token)
+                    .requestMatchers("/api/catalog/**")
+                    .permitAll()
                     .requestMatchers("/api/**")
                     .authenticated()
                     .anyRequest()
