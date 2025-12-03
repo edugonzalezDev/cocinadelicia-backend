@@ -35,7 +35,6 @@ class SecurityConfig {
             auth ->
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**")
                     .permitAll()
-
                     // públicos
                     .requestMatchers(
                         "/actuator/health",
@@ -44,26 +43,31 @@ class SecurityConfig {
                         "/swagger-ui.html",
                         "/h2-console/**")
                     .permitAll()
-
-                    // 🔴 WebSocket/SockJS handshake: lo dejamos pasar, JWT se valida en STOMP
+                    // WebSocket
                     .requestMatchers("/ws/**")
                     .permitAll()
 
                     // Admin-only
                     .requestMatchers("/admin/**")
                     .hasRole("ADMIN")
+                    // ⬇️ NUEVO: API admin de catálogo
+                    .requestMatchers("/api/admin/catalog/**")
+                    .hasRole("ADMIN")
+
                     // Chef o Admin
                     .requestMatchers("/chef/**")
                     .hasAnyRole("CHEF", "ADMIN")
 
-                    // Endpoints de pedidos para staff (ops/admin/chef)
+                    // Endpoints de pedidos para staff
                     .requestMatchers(
                         "/api/orders/ops/**", "/api/orders/admin/**", "/api/orders/chef/**")
                     .hasAnyRole("CHEF", "ADMIN")
 
-                    // Tu API (requiere token)
+                    // Catálogo público
                     .requestMatchers("/api/catalog/**")
                     .permitAll()
+
+                    // Resto de /api requiere token
                     .requestMatchers("/api/**")
                     .authenticated()
                     .anyRequest()

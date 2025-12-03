@@ -1,4 +1,3 @@
-// src/main/java/com/cocinadelicia/backend/product/repository/ProductRepository.java
 package com.cocinadelicia.backend.product.repository;
 
 import com.cocinadelicia.backend.product.model.Product;
@@ -13,4 +12,12 @@ public interface ProductRepository
   Page<Product> findByIsActiveTrue(Pageable pageable);
 
   Page<Product> findByIsActiveTrueAndCategory_SlugIgnoreCase(String slug, Pageable pageable);
+
+  Page<Product> findByCategory_Id(Long categoryId, Pageable pageable);
+
+  Page<Product> findByIsActive(boolean isActive, Pageable pageable);
+
+  Page<Product> findByCategory_IdAndIsActive(Long categoryId, boolean isActive, Pageable pageable);
+
+  boolean existsByCategory_Id(Long categoryId);
 }
