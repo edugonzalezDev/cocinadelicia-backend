@@ -5,16 +5,12 @@ import com.cocinadelicia.backend.product.model.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface ProductRepository extends JpaRepository<Product, Long> {
+public interface ProductRepository
+    extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 
-  /**
-   * Lista productos activos (isActive = true), no eliminados (por @Where).
-   */
   Page<Product> findByIsActiveTrue(Pageable pageable);
 
-  /**
-   * Lista productos activos filtrando por slug de categoría (case-insensitive).
-   */
-  Page<Product> findByIsActiveTrueAndCategory_SlugIgnoreCase(String categorySlug, Pageable pageable);
+  Page<Product> findByIsActiveTrueAndCategory_SlugIgnoreCase(String slug, Pageable pageable);
 }

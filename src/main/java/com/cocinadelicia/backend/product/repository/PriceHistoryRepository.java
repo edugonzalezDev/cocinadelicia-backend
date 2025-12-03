@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long> {
 
   @Query(
-    """
+"""
   select ph.price
   from PriceHistory ph
   where ph.productVariant.id = :variantId
@@ -22,10 +22,10 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
   order by ph.validFrom desc
 """)
   Optional<BigDecimal> findActivePrice(
-    @Param("variantId") Long variantId, @Param("now") Instant now);
+      @Param("variantId") Long variantId, @Param("now") Instant now);
 
   @Query(
-    """
+"""
   select ph
   from PriceHistory ph
   where ph.productVariant.id = :variantId
@@ -34,5 +34,5 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
   order by ph.validFrom desc
 """)
   Optional<PriceHistory> findActivePriceEntry(
-    @Param("variantId") Long variantId, @Param("now") Instant now);
+      @Param("variantId") Long variantId, @Param("now") Instant now);
 }

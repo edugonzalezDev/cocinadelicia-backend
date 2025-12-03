@@ -23,10 +23,9 @@ public class PriceServiceImpl implements PriceService {
   public Optional<PriceInfo> getCurrentPriceForVariant(Long variantId) {
     Instant now = Instant.now();
     return priceHistoryRepository
-      .findActivePriceEntry(variantId, now)
-      .map(
-        ph ->
-          new PriceInfo(
-            ph.getPrice(), ph.getCurrency(), ph.getValidFrom(), ph.getValidTo()));
+        .findActivePriceEntry(variantId, now)
+        .map(
+            ph ->
+                new PriceInfo(ph.getPrice(), ph.getCurrency(), ph.getValidFrom(), ph.getValidTo()));
   }
 }

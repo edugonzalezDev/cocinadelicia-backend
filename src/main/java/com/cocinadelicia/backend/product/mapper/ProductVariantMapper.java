@@ -11,12 +11,12 @@ public class ProductVariantMapper {
 
   public ProductVariantAdminResponse toAdminResponse(ProductVariant entity) {
     return new ProductVariantAdminResponse(
-      entity.getId(),
-      entity.getName(),
-      entity.getSku(),
-      entity.isActive(),
-      entity.isManagesStock(),
-      entity.getStockQuantity());
+        entity.getId(),
+        entity.getName(),
+        entity.getSku(),
+        entity.isActive(),
+        entity.isManagesStock(),
+        entity.getStockQuantity());
   }
 
   public void updateEntityFromRequest(ProductVariantAdminRequest req, ProductVariant entity) {

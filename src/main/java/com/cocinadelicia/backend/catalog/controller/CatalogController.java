@@ -29,60 +29,77 @@ public class CatalogController {
   private final CatalogService catalogService;
 
   @Operation(
-          summary = "Listar categorías activas del catálogo",
-          description =
-                  """
+      summary = "Listar categorías activas del catálogo",
+      description =
+          """
                   Devuelve la lista de categorías activas del catálogo, ordenadas por nombre.
                   Endpoint público: no requiere autenticación.
                   """,
-          responses = {
-                  @ApiResponse(
-                          responseCode = "200",
-                          description = "Lista de categorías activas",
-                          content =
-                          @Content(
-                                  mediaType = "application/json",
-                                  schema =
-                                  @Schema(implementation = CategorySummaryResponse.class)))
-          })
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Lista de categorías activas",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CategorySummaryResponse.class)))
+      })
   @GetMapping("/categories")
   public ResponseEntity<List<CategorySummaryResponse>> getCategories() {
     return ResponseEntity.ok(catalogService.getCategories());
   }
 
   @Operation(
-          summary = "Listar productos del catálogo",
-          description =
-                  """
-                  Lista paginada de productos activos del catálogo.
+      summary = "Listar productos del catálogo",
+      description =
+          """
+      Lista paginada de productos activos del catálogo.
 
-                  Filtros soportados:
-                  - categorySlug (opcional): filtra por categoría.
-                  - page / size: paginación estándar (0-based).
-                  """,
-          responses = {
-                  @ApiResponse(
-                          responseCode = "200",
-                          description = "Página de productos del catálogo",
-                          content =
-                          @Content(
-                                  mediaType = "application/json",
-                                  schema = @Schema(implementation = PageResponse.class)))
-          })
+      Filtros soportados:
+      - categorySlug (opcional): filtra por categoría.
+      - featured (opcional): si es true, solo productos con variantes destacadas.
+      - dailyMenu (opcional): si es true, solo productos marcados como menú del día.
+      - new (opcional): si es true, solo productos nuevos.
+      - page / size: paginación estándar (0-based).
+      """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Página de productos del catálogo",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = PageResponse.class)))
+      })
   @GetMapping("/products")
   public ResponseEntity<PageResponse<ProductSummaryResponse>> getProducts(
-          @Parameter(
-                  description = "Slug de la categoría a filtrar (opcional)",
-                  example = "empanadas")
+      @Parameter(description = "Slug de la categoría a filtrar (opcional)", example = "empanadas")
           @RequestParam(name = "categorySlug", required = false)
           String categorySlug,
-          @ParameterObject
-          @PageableDefault(size = 12)
-          Pageable pageable) {
+      @Parameter(
+              description = "Si es true, solo productos con variantes destacadas",
+              example = "true")
+          @RequestParam(name = "featured", required = false)
+          Boolean featured,
+      @Parameter(
+              description = "Si es true, solo productos marcados como menú del día",
+              example = "true")
+          @RequestParam(name = "dailyMenu", required = false)
+          Boolean dailyMenu,
+      @Parameter(name = "new", description = "Si es true, solo productos nuevos", example = "true")
+          @RequestParam(name = "new", required = false)
+          Boolean isNew,
+      @ParameterObject @PageableDefault(size = 12) Pageable pageable) {
 
     var filter =
-            new CatalogFilter(
-                    categorySlug, pageable.getPageNumber(), pageable.getPageSize(), pageable.getSort());
+        new CatalogFilter(
+            categorySlug,
+            pageable.getPageNumber(),
+            pageable.getPageSize(),
+            pageable.getSort(),
+            featured,
+            dailyMenu,
+            isNew);
 
     return ResponseEntity.ok(catalogService.getProducts(filter));
   }

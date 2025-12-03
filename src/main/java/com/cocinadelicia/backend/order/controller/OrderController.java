@@ -205,9 +205,9 @@ public class OrderController {
   }
 
   @Operation(
-    summary = "Cambiar estado de un pedido (ADMIN o CHEF)",
-    description =
-      """
+      summary = "Cambiar estado de un pedido (ADMIN o CHEF)",
+      description =
+          """
       Cambia el estado de un pedido existente. Requiere rol ADMIN o CHEF.
 
       Estados válidos (enum OrderStatus):
@@ -226,41 +226,40 @@ public class OrderController {
       - READY -> DELIVERED (válida)
       - CREATED -> DELIVERED (inválida → 400 INVALID_STATUS_TRANSITION)
       """,
-    responses = {
-      @ApiResponse(
-        responseCode = "200",
-        description = "Estado actualizado correctamente",
-        content = @Content(schema = @Schema(implementation = OrderResponse.class))),
-      @ApiResponse(
-        responseCode = "400",
-        description = "Transición inválida o request inválido",
-        content = @Content(schema = @Schema(implementation = ApiError.class))),
-      @ApiResponse(
-        responseCode = "404",
-        description = "Pedido no encontrado",
-        content = @Content(schema = @Schema(implementation = ApiError.class))),
-      @ApiResponse(
-        responseCode = "403",
-        description = "Sin permisos (requiere rol ADMIN o CHEF)",
-        content = @Content(schema = @Schema(implementation = ApiError.class))),
-      @ApiResponse(
-        responseCode = "401",
-        description = "No autenticado",
-        content = @Content(schema = @Schema(implementation = ApiError.class)))
-    })
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Estado actualizado correctamente",
+            content = @Content(schema = @Schema(implementation = OrderResponse.class))),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Transición inválida o request inválido",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Pedido no encontrado",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN o CHEF)",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+      })
   @PatchMapping("/{id}/status")
   @PreAuthorize("hasRole('ADMIN') or hasRole('CHEF')")
   public ResponseEntity<OrderResponse> updateStatus(
-    @AuthenticationPrincipal Jwt jwt,
-    @PathVariable Long id,
-    @Valid @RequestBody UpdateOrderStatusRequest body) {
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable Long id,
+      @Valid @RequestBody UpdateOrderStatusRequest body) {
     String performer = jwt.getClaimAsString("email");
     if (performer == null || performer.isBlank()) {
       performer = jwt.getSubject();
     }
     return ResponseEntity.ok(orderService.updateStatus(id, performer, body));
   }
-
 
   // ---------- Helpers ----------
   private Long resolveAppUserId(Jwt jwt) {

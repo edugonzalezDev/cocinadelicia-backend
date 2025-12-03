@@ -11,8 +11,8 @@ import org.hibernate.annotations.Where;
 
 @Entity
 @Table(
-  name = "product_variant",
-  uniqueConstraints = @UniqueConstraint(name = "uk_variant_sku", columnNames = "sku"))
+    name = "product_variant",
+    uniqueConstraints = @UniqueConstraint(name = "uk_variant_sku", columnNames = "sku"))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -37,17 +37,30 @@ public class ProductVariant extends BaseAudit {
   private String name;
 
   @Column(name = "is_active", nullable = false)
+  @Builder.Default
   private boolean isActive = true;
 
-  // 👉 NUEVO: indica si esta variante maneja stock real
+  // 👉 Manejo de stock
   @Column(name = "manages_stock", nullable = false)
   @Builder.Default
   private boolean managesStock = false;
 
-  // 👉 NUEVO: cantidad disponible (solo tiene sentido si managesStock = true)
   @Column(name = "stock_quantity", nullable = false)
   @Builder.Default
   private int stockQuantity = 0;
+
+  // 👉 NUEVO: flags de visibilidad / marketing
+  @Column(name = "is_featured", nullable = false)
+  @Builder.Default
+  private boolean featured = false;
+
+  @Column(name = "is_daily_menu", nullable = false)
+  @Builder.Default
+  private boolean dailyMenu = false;
+
+  @Column(name = "is_new", nullable = false)
+  @Builder.Default
+  private boolean isNew = false;
 
   @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
   @Builder.Default

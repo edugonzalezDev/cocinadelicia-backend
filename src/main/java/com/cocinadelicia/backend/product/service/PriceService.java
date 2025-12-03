@@ -9,9 +9,7 @@ public interface PriceService {
   /**
    * Devuelve el precio vigente para una variante, si existe.
    *
-   * Regla de negocio:
-   * - validFrom <= now
-   * - validTo is null OR validTo > now
+   * <p>Regla de negocio: - validFrom <= now - validTo is null OR validTo > now
    */
   Optional<PriceInfo> getCurrentPriceForVariant(Long variantId);
 }

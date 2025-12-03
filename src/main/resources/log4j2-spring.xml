@@ -36,6 +36,15 @@
         <Logger name="org.springframework" level="INFO"/>
         <Logger name="org.hibernate" level="INFO"/>
 
+        <!-- Silenciar JSSESupport salvo errores serios -->
+        <Logger name="org.apache.tomcat.util.net.jsse.JSSESupport" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <Logger name="org.apache.coyote.http11.Http11Processor" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
         <!-- ROOT para DEV: DEBUG y a la consola -->
         <Root level="DEBUG">
             <AppenderRef ref="Console"/>

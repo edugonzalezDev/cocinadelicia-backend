@@ -6,8 +6,5 @@ import java.math.BigDecimal;
 
 @Schema(description = "Representación de un monto de dinero")
 public record MoneyResponse(
-  @Schema(description = "Monto numérico", example = "120.00")
-  BigDecimal amount,
-  @Schema(description = "Código de moneda ISO 4217", example = "UYU")
-  String currency
-) {}
+    @Schema(description = "Monto numérico", example = "120.00") BigDecimal amount,
+    @Schema(description = "Código de moneda ISO 4217", example = "UYU") String currency) {}

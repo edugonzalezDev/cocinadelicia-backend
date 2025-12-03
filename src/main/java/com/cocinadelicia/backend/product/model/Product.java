@@ -2,7 +2,6 @@ package com.cocinadelicia.backend.product.model;
 
 import com.cocinadelicia.backend.common.model.BaseAudit;
 import jakarta.persistence.*;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -49,7 +48,6 @@ public class Product extends BaseAudit {
   @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
   @Builder.Default
   private List<ProductVariant> variants = new ArrayList<>();
-
 
   // M:N sin campos extra usando join table product_tag
   @ManyToMany

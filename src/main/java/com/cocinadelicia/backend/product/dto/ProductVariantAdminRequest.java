@@ -5,9 +5,4 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Payload para crear/actualizar variante de producto")
 public record ProductVariantAdminRequest(
-  String name,
-  String sku,
-  Boolean isActive,
-  Boolean managesStock,
-  Integer stockQuantity
-) {}
+    String name, String sku, Boolean isActive, Boolean managesStock, Integer stockQuantity) {}

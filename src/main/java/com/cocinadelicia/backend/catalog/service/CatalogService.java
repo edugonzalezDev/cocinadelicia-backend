@@ -9,13 +9,9 @@ import java.util.List;
 
 public interface CatalogService {
 
-  /**
-   * Devuelve las categorías activas/vigentes para el catálogo público.
-   */
+  /** Devuelve las categorías activas/vigentes para el catálogo público. */
   List<CategorySummaryResponse> getCategories();
 
-  /**
-   * Devuelve una página de productos activos, filtrados opcionalmente por categoría.
-   */
+  /** Devuelve una página de productos activos, filtrados opcionalmente por categoría. */
   PageResponse<ProductSummaryResponse> getProducts(CatalogFilter filter);
 }

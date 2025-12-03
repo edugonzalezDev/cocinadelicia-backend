@@ -5,10 +5,4 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Variante de producto para administración")
 public record ProductVariantAdminResponse(
-  Long id,
-  String name,
-  String sku,
-  boolean isActive,
-  boolean managesStock,
-  int stockQuantity
-) {}
+    Long id, String name, String sku, boolean isActive, boolean managesStock, int stockQuantity) {}

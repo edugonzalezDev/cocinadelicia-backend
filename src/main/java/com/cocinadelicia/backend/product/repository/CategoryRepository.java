@@ -12,8 +12,6 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
    */
   List<Category> findAllByOrderByNameAsc();
 
-  /**
-   * Útil si más adelante querés validar que exista una categoría por slug.
-   */
+  /** Útil si más adelante querés validar que exista una categoría por slug. */
   boolean existsBySlugIgnoreCase(String slug);
 }

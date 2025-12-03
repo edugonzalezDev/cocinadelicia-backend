@@ -6,6 +6,7 @@ server:
     key-store-password: changeit123   # <= usa el password que pusiste en keytool
     key-store-type: PKCS12
     key-alias: cdd-local
+    client-auth: none
 
 spring:
   h2:

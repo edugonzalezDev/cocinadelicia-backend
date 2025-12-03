@@ -6,12 +6,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * Información de precio vigente para una variante.
- * Usado internamente por el dominio (no es DTO de API).
+ * Información de precio vigente para una variante. Usado internamente por el dominio (no es DTO de
+ * API).
  */
 public record PriceInfo(
-  BigDecimal amount,
-  CurrencyCode currency,
-  Instant validFrom,
-  Instant validTo
-) {}
+    BigDecimal amount, CurrencyCode currency, Instant validFrom, Instant validTo) {}
