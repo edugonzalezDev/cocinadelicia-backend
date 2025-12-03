@@ -2,12 +2,12 @@
 package com.cocinadelicia.backend.catalog.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.math.BigDecimal;
 import java.util.List;
 
 @Schema(description = "Resumen de producto para el catálogo público")
 public record ProductSummaryResponse(
-  @Schema(description = "Id del producto", example = "42") Long id,
+  @Schema(description = "Id del producto", example = "42")
+  Long id,
   @Schema(description = "Nombre del producto", example = "Empanadas de carne caseras")
   String name,
   @Schema(
@@ -36,26 +36,24 @@ public record ProductSummaryResponse(
     example = "https://cdn.lacocinadelicia.com/products/empanadas-carne-main.jpg")
   String mainImageUrl,
 
-  // Precio
+  // Precio "desde"
   @Schema(
-    description = "Precio \"desde\" considerando variantes activas",
-    example = "120.00")
-  BigDecimal fromPrice,
-  @Schema(description = "Moneda del precio", example = "UYU")
-  String currency,
+    description = "Precio mínimo entre las variantes visibles del producto",
+    example = "{ \"amount\": 120.00, \"currency\": \"UYU\" }")
+  MoneyResponse fromPrice,
 
-  // Disponibilidad
+  // Disponibilidad a alto nivel
   @Schema(
     description =
-      "Indicador de disponibilidad a alto nivel (true: disponible, false: no disponible)",
+      "Indicador de disponibilidad a alto nivel (true: al menos una variante disponible)",
     example = "true")
   boolean available,
   @Schema(
-    description = "Indica si el producto es a pedido (no depende de stock físico)",
+    description = "Indica si el producto es principalmente a pedido (no depende de stock físico)",
     example = "true")
   boolean madeToOrder,
   @Schema(
-    description = "Indica si el producto maneja stock real (true) o no (false)",
+    description = "Indica si alguna variante maneja stock real (true) o no (false)",
     example = "false")
   boolean managesStock,
 
@@ -72,6 +70,11 @@ public record ProductSummaryResponse(
     description = "Indica si el producto es \"nuevo\" en el catálogo",
     example = "true")
   boolean isNew,
+
+  // Variantes
+  @Schema(
+    description = "Lista de variantes disponibles para el producto en el catálogo")
+  List<CatalogVariantResponse> variants,
 
   // Tags
   @Schema(

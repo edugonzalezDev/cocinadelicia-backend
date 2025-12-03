@@ -2,7 +2,10 @@ package com.cocinadelicia.backend.product.model;
 
 import com.cocinadelicia.backend.common.model.BaseAudit;
 import jakarta.persistence.*;
+
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
@@ -42,6 +45,11 @@ public class Product extends BaseAudit {
 
   @Column(name = "is_active", nullable = false)
   private boolean isActive = true;
+
+  @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+  @Builder.Default
+  private List<ProductVariant> variants = new ArrayList<>();
+
 
   // M:N sin campos extra usando join table product_tag
   @ManyToMany
