@@ -8,6 +8,8 @@ import com.cocinadelicia.backend.product.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
@@ -42,14 +44,14 @@ public class AdminCatalogController {
   @Operation(summary = "Crear nueva categoría (admin)")
   @PostMapping("/categories")
   public ResponseEntity<CategoryAdminResponse> createCategory(
-      @RequestBody CategoryAdminRequest request) {
+    @Valid @RequestBody CategoryAdminRequest request) {
     return ResponseEntity.ok(categoryService.create(request));
   }
 
   @Operation(summary = "Actualizar categoría (admin)")
   @PutMapping("/categories/{id}")
   public ResponseEntity<CategoryAdminResponse> updateCategory(
-      @PathVariable Long id, @RequestBody CategoryAdminRequest request) {
+      @PathVariable Long id, @Valid @RequestBody CategoryAdminRequest request) {
     return ResponseEntity.ok(categoryService.update(id, request));
   }
 
@@ -83,14 +85,14 @@ public class AdminCatalogController {
   @Operation(summary = "Crear nuevo producto (admin)")
   @PostMapping("/products")
   public ResponseEntity<ProductAdminResponse> createProduct(
-      @RequestBody ProductAdminRequest request) {
+    @Valid @RequestBody ProductAdminRequest request) {
     return ResponseEntity.ok(productService.create(request));
   }
 
   @Operation(summary = "Actualizar producto (admin)")
   @PutMapping("/products/{id}")
   public ResponseEntity<ProductAdminResponse> updateProduct(
-      @PathVariable Long id, @RequestBody ProductAdminRequest request) {
+      @PathVariable Long id, @Valid @RequestBody ProductAdminRequest request) {
     return ResponseEntity.ok(productService.update(id, request));
   }
 
@@ -119,14 +121,14 @@ public class AdminCatalogController {
   @Operation(summary = "Crear nueva variante para un producto (admin)")
   @PostMapping("/products/{productId}/variants")
   public ResponseEntity<ProductVariantAdminResponse> createVariant(
-      @PathVariable Long productId, @RequestBody ProductVariantAdminRequest request) {
+      @PathVariable Long productId, @Valid @RequestBody ProductVariantAdminRequest request) {
     return ResponseEntity.ok(variantService.create(productId, request));
   }
 
   @Operation(summary = "Actualizar variante (admin)")
   @PutMapping("/variants/{id}")
   public ResponseEntity<ProductVariantAdminResponse> updateVariant(
-      @PathVariable Long id, @RequestBody ProductVariantAdminRequest request) {
+      @PathVariable Long id, @Valid  @RequestBody ProductVariantAdminRequest request) {
     return ResponseEntity.ok(variantService.update(id, request));
   }
 
