@@ -125,12 +125,15 @@ public class AdminCatalogController {
     return ResponseEntity.ok(variantService.create(productId, request));
   }
 
-  @Operation(summary = "Actualizar variante (admin)")
-  @PutMapping("/variants/{id}")
+  @Operation(summary = "Actualizar variante (admin, parcial)")
+  @PatchMapping("/variants/{id}")
   public ResponseEntity<ProductVariantAdminResponse> updateVariant(
-      @PathVariable Long id, @Valid  @RequestBody ProductVariantAdminRequest request) {
+    @PathVariable Long id, @RequestBody ProductVariantAdminRequest request) {
+    // Al ser parcial, no usamos @Valid a nivel global del DTO,
+    // las validaciones las manejamos dentro del servicio (ej: stock >= 0)
     return ResponseEntity.ok(variantService.update(id, request));
   }
+
 
   @Operation(summary = "Eliminar variante (admin)")
   @DeleteMapping("/variants/{id}")
