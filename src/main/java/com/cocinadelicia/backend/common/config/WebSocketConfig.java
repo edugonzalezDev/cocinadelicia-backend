@@ -26,7 +26,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         .setAllowedOriginPatterns(
             "http://localhost:*",
             "https://localhost:*",
-            "https://192.168.1.9:*",
+            "https://192.168.1.4:*",
             "http://127.0.0.1:*",
             "https://*.onrender.com",
             "https://*.lacocinadelicia.com",

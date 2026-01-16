@@ -58,3 +58,5 @@ app:
     server:
       dev: https://api.lacocinadelicia.com   # opcional (puede apuntar a prod)
       prod: https://api.lacocinadelicia.com
+  cdn:
+    base-url: https://dk9xtqc3ymebu.cloudfront.net

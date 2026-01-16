@@ -115,7 +115,7 @@ class SecurityConfig {
             "https://www.lacocinadelicia.com",
             "https://cocinadelicia-frontend.netlify.app",
             "https://192.168.56.1:*",
-            "https://192.168.1.9:*"));
+            "https://192.168.1.4:*"));
     cors.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     cors.setAllowedHeaders(
         Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));

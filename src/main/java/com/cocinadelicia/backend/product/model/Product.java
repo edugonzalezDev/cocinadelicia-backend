@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import com.cocinadelicia.backend.product.model.ProductImage;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
@@ -48,6 +49,11 @@ public class Product extends BaseAudit {
   @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
   @Builder.Default
   private List<ProductVariant> variants = new ArrayList<>();
+
+  @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+  @OrderBy("sortOrder ASC, id ASC")
+  @Builder.Default
+  private List<ProductImage> images = new ArrayList<>();
 
   // M:N sin campos extra usando join table product_tag
   @ManyToMany

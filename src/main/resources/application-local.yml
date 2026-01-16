@@ -47,8 +47,10 @@ cdd:
 app:
   openapi:
     server:
-      dev: https://192.168.1.9:8443
+      dev: https://192.168.1.4:8443
       prod: https://api.lacocinadelicia.com
+  cdn:
+    base-url: https://cocinadelicia-images-dev.s3.us-east-1.amazonaws.com
 
 logging:
   config: classpath:log4j2-spring.xml

@@ -48,6 +48,8 @@ app:
     server:
       dev: https://cocinadelicia-backend.onrender.com
       prod: https://api.lacocinadelicia.com
+  cdn:
+    base-url: https://cocinadelicia-images-dev.s3.us-east-1.amazonaws.com
 
 logging:
   config: classpath:log4j2-spring.xml
