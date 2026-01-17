@@ -7,9 +7,8 @@ import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.product.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.List;
-
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
@@ -44,7 +43,7 @@ public class AdminCatalogController {
   @Operation(summary = "Crear nueva categoría (admin)")
   @PostMapping("/categories")
   public ResponseEntity<CategoryAdminResponse> createCategory(
-    @Valid @RequestBody CategoryAdminRequest request) {
+      @Valid @RequestBody CategoryAdminRequest request) {
     return ResponseEntity.ok(categoryService.create(request));
   }
 
@@ -85,7 +84,7 @@ public class AdminCatalogController {
   @Operation(summary = "Crear nuevo producto (admin)")
   @PostMapping("/products")
   public ResponseEntity<ProductAdminResponse> createProduct(
-    @Valid @RequestBody ProductAdminRequest request) {
+      @Valid @RequestBody ProductAdminRequest request) {
     return ResponseEntity.ok(productService.create(request));
   }
 
@@ -128,12 +127,11 @@ public class AdminCatalogController {
   @Operation(summary = "Actualizar variante (admin, parcial)")
   @PatchMapping("/variants/{id}")
   public ResponseEntity<ProductVariantAdminResponse> updateVariant(
-    @PathVariable Long id, @RequestBody ProductVariantAdminRequest request) {
+      @PathVariable Long id, @RequestBody ProductVariantAdminRequest request) {
     // Al ser parcial, no usamos @Valid a nivel global del DTO,
     // las validaciones las manejamos dentro del servicio (ej: stock >= 0)
     return ResponseEntity.ok(variantService.update(id, request));
   }
-
 
   @Operation(summary = "Eliminar variante (admin)")
   @DeleteMapping("/variants/{id}")

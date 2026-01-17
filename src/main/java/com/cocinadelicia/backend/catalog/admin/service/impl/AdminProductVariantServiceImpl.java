@@ -1,6 +1,7 @@
 package com.cocinadelicia.backend.catalog.admin.service.impl;
 
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductVariantService;
+import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.product.dto.ProductVariantAdminRequest;
 import com.cocinadelicia.backend.product.dto.ProductVariantAdminResponse;
@@ -14,8 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.cocinadelicia.backend.common.exception.BadRequestException;
-
 
 @Service
 @RequiredArgsConstructor
@@ -56,17 +55,16 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
   @Override
   public ProductVariantAdminResponse create(Long productId, ProductVariantAdminRequest request) {
     Product product =
-      productRepository
-        .findById(productId)
-        .orElseThrow(
-          () ->
-            new NotFoundException(
-              "PRODUCT_NOT_FOUND", "Producto no encontrado: " + productId));
+        productRepository
+            .findById(productId)
+            .orElseThrow(
+                () ->
+                    new NotFoundException(
+                        "PRODUCT_NOT_FOUND", "Producto no encontrado: " + productId));
 
     // ✅ Validación de stock
     if (request.stockQuantity() != null && request.stockQuantity() < 0) {
-      throw new BadRequestException(
-        "INVALID_STOCK_QUANTITY", "El stock no puede ser negativo.");
+      throw new BadRequestException("INVALID_STOCK_QUANTITY", "El stock no puede ser negativo.");
     }
 
     ProductVariant variant = mapper.toNewEntity(request);
@@ -80,15 +78,14 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
   @Override
   public ProductVariantAdminResponse update(Long id, ProductVariantAdminRequest request) {
     ProductVariant variant =
-      variantRepository
-        .findById(id)
-        .orElseThrow(
-          () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada: " + id));
+        variantRepository
+            .findById(id)
+            .orElseThrow(
+                () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada: " + id));
 
     // ✅ Validación de stock
     if (request.stockQuantity() != null && request.stockQuantity() < 0) {
-      throw new BadRequestException(
-        "INVALID_STOCK_QUANTITY", "El stock no puede ser negativo.");
+      throw new BadRequestException("INVALID_STOCK_QUANTITY", "El stock no puede ser negativo.");
     }
 
     mapper.updateEntityFromRequest(request, variant);
@@ -96,7 +93,6 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
     log.info("AdminVariant.update id={}", saved.getId());
     return mapper.toAdminResponse(saved);
   }
-
 
   @Override
   public void delete(Long id) {
