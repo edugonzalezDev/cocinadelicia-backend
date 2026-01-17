@@ -10,7 +10,7 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       # ↓↓↓ Clave para que Aurora pueda pausar
-      minimum-idle: 0            # antes: 2 (esto mantenía 2 conexiones abiertas SIEMPRE)
+#      minimum-idle: 0            # antes: 2 (esto mantenía 2 conexiones abiertas SIEMPRE)
       maximum-pool-size: 10
       minimum-idle: 2 # mantener algunas conexiones listas
       idle-timeout: 60000 # 60s
