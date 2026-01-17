@@ -7,8 +7,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(
@@ -37,7 +39,9 @@ public class Product extends BaseAudit {
   @Column(length = 191, nullable = false)
   private String slug;
 
-  @Lob private String description;
+  @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+  @jakarta.persistence.Column(columnDefinition = "text")
+  private String description;
 
   @Column(name = "tax_rate_percent", precision = 5, scale = 2, nullable = false)
   private java.math.BigDecimal taxRatePercent;
