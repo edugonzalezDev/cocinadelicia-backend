@@ -1,3 +1,4 @@
+// src/main/java/com/cocinadelicia/backend/product/model/ProductVariant.java
 package com.cocinadelicia.backend.product.model;
 
 import com.cocinadelicia.backend.common.model.BaseAudit;
@@ -36,9 +37,40 @@ public class ProductVariant extends BaseAudit {
   private String name;
 
   @Column(name = "is_active", nullable = false)
+  @Builder.Default
   private boolean isActive = true;
+
+  // 👉 Manejo de stock
+  @Column(name = "manages_stock", nullable = false)
+  @Builder.Default
+  private boolean managesStock = false;
+
+  @Column(name = "stock_quantity", nullable = false)
+  @Builder.Default
+  private int stockQuantity = 0;
+
+  // 👉 NUEVO: flags de visibilidad / marketing
+  @Column(name = "is_featured", nullable = false)
+  @Builder.Default
+  private boolean featured = false;
+
+  @Column(name = "is_daily_menu", nullable = false)
+  @Builder.Default
+  private boolean dailyMenu = false;
+
+  @Column(name = "is_new", nullable = false)
+  @Builder.Default
+  private boolean isNew = false;
 
   @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
   @Builder.Default
   private List<PriceHistory> priceHistory = new ArrayList<>();
+
+  // Helper opcional para disponibilidad a nivel dominio
+  @Transient
+  public boolean isAvailable() {
+    if (!isActive()) return false;
+    if (!managesStock) return true;
+    return stockQuantity > 0;
+  }
 }

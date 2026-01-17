@@ -181,6 +181,395 @@ Ver detalles y ejemplos en Convenciones.md del repo raíz.
 
 *(Basado en `Plan_Sprints_CocinaDeLicia.md`)*
 
+
+---
+## 📦 Pedidos (Sprint 2)
+
+Esta sección describe el **flujo de pedido** y los **endpoints principales** implementados en el Sprint 2.
+Los ejemplos asumen que el usuario está autenticado vía **JWT (Cognito)** y que el frontend utiliza
+el `apiClient` con `Authorization: Bearer <token>`.
+
+> Nota: los nombres de paths/roles se sincronizan con `OrderController` y la lógica de negocio de `OrderServiceImpl`.
+
+### 🔁 Flujo de estados de pedido
+
+Los pedidos (`CustomerOrder`) representan órdenes realizadas por usuarios finales. Cada pedido tiene
+un `status` basado en el enum `OrderStatus`:
+
+- `CREATED` → pedido recién creado por el cliente.
+- `CONFIRMED` → **(reservado para futuro)**, posible etapa intermedia antes de preparar.
+- `PREPARING` → el equipo de cocina está preparando el pedido.
+- `READY` → el pedido está listo para retirar o salir a reparto.
+- `OUT_FOR_DELIVERY` → el pedido está en camino (delivery).
+- `DELIVERED` → el pedido fue entregado al cliente.
+- `CANCELED` → el pedido fue cancelado (por cliente o staff).
+
+Transiciones válidas (conceptual, alineado a `OrderStatusTransitionValidator` y al frontend `AdminOrdersPage`):
+
+- `CREATED` → `PREPARING` | `CANCELED`
+- `CONFIRMED` → `PREPARING` | `CANCELED`
+- `PREPARING` → `READY` | `CANCELED`
+- `READY` → `DELIVERED`
+- `OUT_FOR_DELIVERY` → `DELIVERED`
+- `DELIVERED` → *(estado final, sin transiciones posteriores)*
+- `CANCELED` → *(estado final, sin transiciones posteriores)*
+
+Estas reglas se validan en backend. Las transiciones inválidas producen un **error 400** con código
+de negocio (ej.: `INVALID_STATUS_TRANSITION`) y se registran en logs (`WARN`).
+
+---
+
+### 🔌 Endpoints de pedidos
+
+Todos los endpoints están bajo el prefijo ` /api/orders` y documentados en Swagger/OpenAPI con el
+tag `orders`. Se requiere JWT para acceder.
+
+#### 1. Crear pedido
+
+- **Método/Path:** `POST /api/orders`
+- **Quién lo usa:** cliente autenticado (web/app).
+- **Descripción:** crea un nuevo pedido asociado al usuario actual. Calcula precios y totales en base
+  al precio vigente de cada variante.
+- **Auth:** `Bearer JWT`
+- **Roles:** cualquier usuario autenticado.
+
+**Request (ejemplo – delivery):**
+
+```json
+{
+  "fulfillment": "DELIVERY",
+  "notes": "Sin cebolla y poco picante",
+  "items": [
+    {
+      "productId": 1,
+      "productVariantId": 10,
+      "quantity": 2
+    },
+    {
+      "productId": 2,
+      "productVariantId": 20,
+      "quantity": 1
+    }
+  ],
+  "shipping": {
+    "name": "Juan Pérez",
+    "phone": "091234567",
+    "line1": "Av. Siempre Viva 123",
+    "line2": "Apto 201",
+    "city": "Ciudad de la Costa",
+    "region": "Canelones",
+    "postalCode": "15000",
+    "reference": "Frente a la plaza"
+  }
+}
+```
+
+**Response 201 (ejemplo simplificado):**
+
+```json
+{
+  "id": 42,
+  "status": "CREATED",
+  "fulfillment": "DELIVERY",
+  "currency": "UYU",
+  "subtotalAmount": "520.00",
+  "taxAmount": "0.00",
+  "discountAmount": "0.00",
+  "totalAmount": "520.00",
+  "notes": "Sin cebolla y poco picante",
+  "shipName": "Juan Pérez",
+  "shipPhone": "091234567",
+  "shipLine1": "Av. Siempre Viva 123",
+  "shipLine2": "Apto 201",
+  "shipCity": "Ciudad de la Costa",
+  "shipRegion": "Canelones",
+  "shipPostalCode": "15000",
+  "shipReference": "Frente a la plaza",
+  "items": [
+    {
+      "productId": 1,
+      "productVariantId": 10,
+      "productName": "Hamburguesa Clásica",
+      "variantName": "Doble carne",
+      "unitPrice": "220.00",
+      "quantity": 2,
+      "lineTotal": "440.00"
+    },
+    {
+      "productId": 2,
+      "productVariantId": 20,
+      "productName": "Papas fritas",
+      "variantName": "Grande",
+      "unitPrice": "80.00",
+      "quantity": 1,
+      "lineTotal": "80.00"
+    }
+  ],
+  "createdAt": "2025-11-12T14:32:10Z"
+}
+```
+
+---
+
+#### 2. Listar pedidos del usuario
+
+- **Método/Path:** `GET /api/orders/mine`
+- **Quién lo usa:** cliente autenticado (área “Mis pedidos” / “Área del Cliente”).
+- **Descripción:** devuelve una **página** de pedidos pertenecientes al usuario actual, ordenados por
+  `createdAt` descendente.
+- **Auth:** `Bearer JWT`
+- **Roles:** cualquier usuario autenticado.
+
+Parámetros estándar de paginación (Spring Data):
+
+- `page` (0-based, default 0)
+- `size` (tamaño de página, default 10)
+- `sort` (campo de orden, default `createdAt,desc`)
+
+Ejemplo de uso desde frontend:
+
+```ts
+// useOrderStore.fetchMyOrders
+GET /api/orders/mine?page=0&size=10
+Authorization: Bearer <token>
+```
+
+---
+
+#### 3. Listar pedidos para backoffice (ADMIN/CHEF)
+
+- **Método/Path:** `GET /api/orders/ops` *(alias: `/admin`, `/chef`)*
+- **Quién lo usa:** panel administrativo (cocina / backoffice).
+- **Descripción:** lista paginada de pedidos con filtros por estado y rango de fechas.
+- **Auth:** `Bearer JWT`
+- **Roles:** `ADMIN` o `CHEF`.
+
+Parámetros de filtro:
+
+- `status` → lista CSV de estados (ej.: `CREATED,PREPARING,READY`).
+- `from` → fecha desde (inclusive), formato `YYYY-MM-DD`.
+- `to` → fecha hasta (inclusive), formato `YYYY-MM-DD`.
+- Parámetros de paginación estándares (`page`, `size`, `sort`). El tamaño máximo se limita a 50.
+
+Ejemplo:
+
+```http
+GET /api/orders/ops?status=CREATED,PREPARING&from=2025-11-01&to=2025-11-30&page=0&size=20
+Authorization: Bearer <token ADMIN/CHEF>
+```
+
+La respuesta se envuelve en un `OrderPageResponse<OrderResponse>` con metadatos de paginación.
+
+---
+
+#### 4. Cambiar estado de un pedido (ADMIN/CHEF)
+
+- **Método/Path:** `PATCH /api/orders/{id}/status`
+- **Quién lo usa:** panel administrativo (cocina / backoffice).
+- **Descripción:** cambia el estado de un pedido existente. Registra en logs quién realizó el cambio
+  (`performedBy`) y la nota opcional.
+- **Auth:** `Bearer JWT`
+- **Roles:** `ADMIN` o `CHEF`.
+
+**Request (ejemplo):**
+
+```json
+{
+  "status": "PREPARING",
+  "note": "Pedido prioritario por horario del cliente"
+}
+```
+
+**Response 200 (ejemplo simplificado):**
+
+```json
+{
+  "id": 42,
+  "status": "PREPARING",
+  "fulfillment": "DELIVERY",
+  "totalAmount": "520.00",
+  "currency": "UYU",
+  "createdAt": "2025-11-12T14:32:10Z",
+  "updatedAt": "2025-11-12T14:40:00Z"
+}
+```
+
+Si la transición no es válida para el estado actual, el backend responde:
+
+- **HTTP 400** con código de dominio (ej.: `INVALID_STATUS_TRANSITION`).
+- Registro `WARN` en logs: `InvalidOrderStatusTransition orderId=... from=... to=... by=...`.
+
+---
+
+### ⚠️ Errores de negocio y formato de error
+
+Todos los errores de negocio pasan por el `GlobalExceptionHandler` y utilizan el modelo `ApiError`:
+
+```json
+{
+  "timestamp": "2025-11-12T15:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Debe agregar al menos un ítem.",
+  "path": "/api/orders",
+  "code": "ORDER_ITEMS_EMPTY"
+}
+```
+
+Principales códigos de error relacionados a pedidos:
+
+- `ORDER_ITEMS_EMPTY` → no se envió ningún ítem en el pedido.
+- `INVALID_QUANTITY` → alguna cantidad es menor a 1.
+- `FULFILLMENT_REQUIRED` → no se indicó `fulfillment`.
+- `DELIVERY_ADDRESS_REQUIRED` → falta información obligatoria de envío cuando `fulfillment=DELIVERY`.
+- `PRODUCT_NOT_FOUND` → algún `productId` no existe.
+- `VARIANT_NOT_FOUND` → algún `productVariantId` no existe.
+- `VARIANT_MISMATCH` → la variante no pertenece al producto indicado.
+- `PRICE_NOT_FOUND` → no hay precio vigente para una variante.
+- `ORDER_NOT_FOUND` → pedido inexistente o no perteneciente al usuario.
+- `STATUS_REQUIRED` → se intentó cambiar el estado sin indicar `status`.
+- `INVALID_STATUS_TRANSITION` → transición de estado no permitida según las reglas de negocio.
+
+Además:
+
+- Errores de validación (`@Valid`, `@NotNull`, etc.) devuelven **400** con estructura:
+  ```json
+  {
+    "timestamp": "2025-11-12T15:30:00Z",
+    "status": 400,
+    "error": "Bad Request",
+    "message": "Validation failed",
+    "path": "/api/orders",
+    "fields": {
+      "shipping.name": "no debe estar vacío",
+      "items[0].quantity": "debe ser mayor o igual a 1"
+    }
+  }
+  ```
+  Este formato es consumido por el frontend para mostrar errores inline (ej.: `NewOrder.jsx`).
+
+- Errores de permisos (`AccessDeniedException`) devuelven **403** con `code="ACCESS_DENIED"`.
+- Cualquier error inesperado pasa por el handler genérico y devuelve **500** con mensaje controlado
+  (sin exponer el stacktrace al cliente).
+
+---
+
+## ❗ Errores típicos en el flujo de Chef
+
+Esta sección resume los errores más frecuentes desde la perspectiva de la **vista de Chef** y del
+panel administrativo, alineados con las respuestas reales del backend.
+
+### 1. TRANSICIÓN_INVALIDA (HTTP 400)
+
+**Escenario:**  
+Intentar cambiar un pedido desde un estado no permitido por la lógica de negocio  
+(p. ej. `CREATED -> DELIVERED` directamente).
+
+**Request de ejemplo:**
+
+```http
+PATCH /api/orders/42/status HTTP/1.1
+Authorization: Bearer <token-con-rol-chef>
+Content-Type: application/json
+
+{
+  "status": "DELIVERED",
+  "note": "Marcado como entregado desde cocina"
+}
+```
+
+**Response:**
+
+```json
+{
+  "timestamp": "2025-11-23T15:32:10.123Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "No se puede pasar de CREATED a DELIVERED.",
+  "path": "/api/orders/42/status",
+  "code": "INVALID_STATUS_TRANSITION"
+}
+```
+
+---
+
+### 2. PEDIDO_NO_ENCONTRADO (HTTP 404)
+
+**Escenario:**  
+Intentar operar sobre un pedido inexistente o, en el caso de cliente, que no le pertenece.
+
+**Request de ejemplo:**
+
+```http
+PATCH /api/orders/999999/status HTTP/1.1
+Authorization: Bearer <token-con-rol-chef>
+Content-Type: application/json
+
+{
+  "status": "READY"
+}
+```
+
+**Response:**
+
+```json
+{
+  "timestamp": "2025-11-23T15:40:55.987Z",
+  "status": 404,
+  "error": "Not Found",
+  "message": "Pedido not encontrado.",
+  "path": "/api/orders/999999/status",
+  "code": "ORDER_NOT_FOUND"
+}
+```
+
+> Nota: En algunos casos de seguridad (por ejemplo, un cliente intentando acceder a un pedido de otro usuario), también se devuelve `ORDER_NOT_FOUND` para no filtrar información sobre la existencia del recurso.
+
+---
+
+### 3. PEDIDO_NO_VISIBLE_PARA_ROL (HTTP 403)
+
+**Escenario:**  
+Intentar cambiar el estado de un pedido sin tener el rol adecuado (por ejemplo, un usuario sin rol `ADMIN`/`CHEF` llamando al endpoint de cambio de estado).
+
+**Request de ejemplo:**
+
+```http
+PATCH /api/orders/42/status HTTP/1.1
+Authorization: Bearer <token-sin-rol-chef-ni-admin>
+Content-Type: application/json
+
+{
+  "status": "PREPARING"
+}
+```
+
+**Response:**
+
+```json
+{
+  "timestamp": "2025-11-23T15:45:02.456Z",
+  "status": 403,
+  "error": "Forbidden",
+  "message": "No tiene permisos para realizar esta acción.",
+  "path": "/api/orders/42/status",
+  "code": "ACCESS_DENIED"
+}
+```
+
+> En la documentación funcional podés referirte a este caso como  
+> **“PEDIDO_NO_VISIBLE_PARA_ROL”**, aunque el `code` técnico devuelto por la API sea `ACCESS_DENIED`.
+
+---
+
+### Resumen de códigos de error relevantes para Chef
+
+| Caso funcional                | HTTP | `code` técnico              |
+|------------------------------|------|-----------------------------|
+| TRANSICIÓN_INVALIDA          | 400  | `INVALID_STATUS_TRANSITION` |
+| PEDIDO_NO_ENCONTRADO         | 404  | `ORDER_NOT_FOUND`           |
+| PEDIDO_NO_VISIBLE_PARA_ROL   | 403  | `ACCESS_DENIED`             |
+
 ---
 
 ## 🔄 CI/CD
@@ -194,13 +583,13 @@ Ver detalles y ejemplos en Convenciones.md del repo raíz.
 
 ### Variables y Secrets requeridos (GitHub → Settings)
 - **Secrets**
-    - `EC2_HOST` → IP o hostname
-    - `EC2_USER` → usuario con sudo (p.ej. `ubuntu`)
-    - `EC2_SSH_KEY` → clave privada **PEM** (contenido)
-    - `EC2_SERVICE_NAME` → nombre del servicio `systemd` (p.ej. `cocinadelicia.service`)
-    - `DEPLOY_DIR` *(opcional)* → default: `/opt/cocinadelicia/backend`
+  - `EC2_HOST` → IP o hostname
+  - `EC2_USER` → usuario con sudo (p.ej. `ubuntu`)
+  - `EC2_SSH_KEY` → clave privada **PEM** (contenido)
+  - `EC2_SERVICE_NAME` → nombre del servicio `systemd` (p.ej. `cocinadelicia.service`)
+  - `DEPLOY_DIR` *(opcional)* → default: `/opt/cocinadelicia/backend`
 - **Opcionales** (si usás OIDC u otros)
-    - `AWS_REGION` si integrás otros pasos (no requerido para SSH puro)
+  - `AWS_REGION` si integrás otros pasos (no requerido para SSH puro)
 
 > El pipeline **falla** si:
 > - El mensaje de commit no respeta convención.
@@ -214,8 +603,8 @@ Ver detalles y ejemplos en Convenciones.md del repo raíz.
 **Estrategia actual:** EC2 con Java 17, JAR como servicio **systemd**, Nginx (o ALB) al frente.
 
 - **Ruta de despliegue remoto** (ej.): `/opt/cocinadelicia/backend`
-    - `releases/` → versiones fechadas
-    - `current.jar` → symlink al release activo
+  - `releases/` → versiones fechadas
+  - `current.jar` → symlink al release activo
 - **Reinicio**:
   ```bash
   sudo systemctl daemon-reload

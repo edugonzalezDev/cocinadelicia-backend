@@ -18,7 +18,6 @@ import org.springframework.web.cors.*;
 
 @Configuration
 @EnableMethodSecurity
-// ⚠️ SIN @Profile aquí, así aplica en dev y prod
 class SecurityConfig {
 
   @Value("${cdd.security.groups-claim:cognito:groups}")
@@ -29,18 +28,13 @@ class SecurityConfig {
 
   @Bean
   SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
-    http
-        // 👇 Habilita CORS (usará el bean CorsConfigurationSource)
-        .cors(cors -> {})
+    http.cors(cors -> {})
         .csrf(csrf -> csrf.disable())
         .headers(h -> h.frameOptions(frame -> frame.sameOrigin())) // H2 en dev
         .authorizeHttpRequests(
             auth ->
-                auth
-                    // 👇 MUY IMPORTANTE: dejar pasar preflight
-                    .requestMatchers(HttpMethod.OPTIONS, "/**")
+                auth.requestMatchers(HttpMethod.OPTIONS, "/**")
                     .permitAll()
-
                     // públicos
                     .requestMatchers(
                         "/actuator/health",
@@ -49,19 +43,33 @@ class SecurityConfig {
                         "/swagger-ui.html",
                         "/h2-console/**")
                     .permitAll()
+                    // WebSocket
+                    .requestMatchers("/ws/**")
+                    .permitAll()
 
                     // Admin-only
                     .requestMatchers("/admin/**")
                     .hasRole("ADMIN")
+                    // ⬇️ NUEVO: API admin de catálogo
+                    .requestMatchers("/api/admin/catalog/**")
+                    .hasRole("ADMIN")
+
                     // Chef o Admin
                     .requestMatchers("/chef/**")
                     .hasAnyRole("CHEF", "ADMIN")
 
-                    // Tu API (requiere token)
+                    // Endpoints de pedidos para staff
+                    .requestMatchers(
+                        "/api/orders/ops/**", "/api/orders/admin/**", "/api/orders/chef/**")
+                    .hasAnyRole("CHEF", "ADMIN")
+
+                    // Catálogo público
+                    .requestMatchers("/api/catalog/**")
+                    .permitAll()
+
+                    // Resto de /api requiere token
                     .requestMatchers("/api/**")
                     .authenticated()
-
-                    // resto denegado
                     .anyRequest()
                     .denyAll())
         .oauth2ResourceServer(
@@ -71,11 +79,12 @@ class SecurityConfig {
     return http.build();
   }
 
-  private JwtAuthenticationConverter jwtAuthenticationConverter() {
+  // 🔴 AHORA ES @Bean → reutilizable desde WebSocket
+  @Bean
+  JwtAuthenticationConverter jwtAuthenticationConverter() {
     var converter = new JwtAuthenticationConverter();
     converter.setJwtGrantedAuthoritiesConverter(
         jwt -> (Collection<GrantedAuthority>) extractAuthoritiesFromJwt(jwt));
-
     return converter;
   }
 
@@ -90,7 +99,7 @@ class SecurityConfig {
     if (requiredAudience != null && !requiredAudience.isBlank()) {
       List<String> aud = jwt.getAudience();
       if (aud == null || !aud.contains(requiredAudience)) {
-        // opción: lanzar excepción si querés “fallar duro”
+        // podrías loguear o lanzar excepción si querés “fallar duro”
       }
     }
     return roles;
@@ -99,13 +108,22 @@ class SecurityConfig {
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cors = new CorsConfiguration();
-    // Para dev es más práctico usar patterns por puerto
-    cors.setAllowedOriginPatterns(List.of("http://localhost:*", "https://www.lacocinadelicia.com"));
+    cors.setAllowedOriginPatterns(
+        List.of(
+            "https://localhost:*",
+            "https://127.0.0.1:*",
+            "https://www.lacocinadelicia.com",
+            "https://cocinadelicia-frontend.netlify.app",
+            "https://192.168.56.1:*",
+            "https://192.168.1.4:*"));
     cors.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     cors.setAllowedHeaders(
         Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
     cors.setExposedHeaders(List.of("Location"));
-    cors.setAllowCredentials(false);
+
+    // 🔴 Necesario para SockJS con credenciales
+    cors.setAllowCredentials(true);
+
     cors.setMaxAge(3600L);
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

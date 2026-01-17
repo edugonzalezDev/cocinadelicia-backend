@@ -7,6 +7,7 @@ import com.cocinadelicia.backend.common.model.enums.OrderStatus;
 import com.cocinadelicia.backend.user.model.AppUser;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
@@ -25,7 +26,7 @@ import org.hibernate.annotations.Where;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE customer_order SET deleted_at = NOW() WHERE id = ?")
+@SQLDelete(sql = "UPDATE customer_order SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 @Where(clause = "deleted_at IS NULL")
 public class CustomerOrder extends BaseAudit {
 
@@ -88,7 +89,14 @@ public class CustomerOrder extends BaseAudit {
   @Column(name = "ship_reference", length = 191)
   private String shipReference;
 
-  @Lob private String notes;
+  @Column(name = "notes", columnDefinition = "text")
+  private String notes;
+
+  @Column(name = "requested_at")
+  private Instant requestedAt;
+
+  @Column(name = "delivered_at")
+  private Instant deliveredAt;
 
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
   @Builder.Default

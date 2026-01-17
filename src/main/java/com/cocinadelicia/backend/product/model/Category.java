@@ -18,7 +18,7 @@ import org.hibernate.annotations.Where;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE category SET deleted_at = NOW() WHERE id = ?")
+@SQLDelete(sql = "UPDATE category SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 @Where(clause = "deleted_at IS NULL")
 public class Category extends BaseAudit {
 
@@ -32,5 +32,6 @@ public class Category extends BaseAudit {
   @Column(length = 191, nullable = false)
   private String slug;
 
-  @Lob private String description;
+  @Column(columnDefinition = "text")
+  private String description;
 }

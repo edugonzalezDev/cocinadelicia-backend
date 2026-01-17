@@ -2,5 +2,7 @@ package com.cocinadelicia.backend.product.repository;
 
 import com.cocinadelicia.backend.product.model.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-interface ProductVariantRepository extends JpaRepository<ProductVariant, Long> {}
+@Repository
+public interface ProductVariantRepository extends JpaRepository<ProductVariant, Long> {}
