@@ -8,17 +8,17 @@ import org.hibernate.annotations.Where;
 
 @Entity
 @Table(
-    name = "category",
-    uniqueConstraints = {
-      @UniqueConstraint(name = "uk_category_name", columnNames = "name"),
-      @UniqueConstraint(name = "uk_category_slug", columnNames = "slug")
-    })
+  name = "category",
+  uniqueConstraints = {
+    @UniqueConstraint(name = "uk_category_name", columnNames = "name"),
+    @UniqueConstraint(name = "uk_category_slug", columnNames = "slug")
+  })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE category SET deleted_at = NOW() WHERE id = ?")
+@SQLDelete(sql = "UPDATE category SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 @Where(clause = "deleted_at IS NULL")
 public class Category extends BaseAudit {
 
@@ -32,5 +32,6 @@ public class Category extends BaseAudit {
   @Column(length = 191, nullable = false)
   private String slug;
 
-  @Lob private String description;
+  @Column(columnDefinition = "text")
+  private String description;
 }
