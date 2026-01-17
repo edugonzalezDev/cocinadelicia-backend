@@ -16,17 +16,17 @@ import org.hibernate.annotations.Where;
 
 @Entity
 @Table(
-    name = "customer_order",
-    indexes = {
-      @Index(name = "ix_order_user_created", columnList = "user_id, created_at"),
-      @Index(name = "ix_order_status_created", columnList = "status, created_at")
-    })
+  name = "customer_order",
+  indexes = {
+    @Index(name = "ix_order_user_created", columnList = "user_id, created_at"),
+    @Index(name = "ix_order_status_created", columnList = "status, created_at")
+  })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE customer_order SET deleted_at = NOW() WHERE id = ?")
+@SQLDelete(sql = "UPDATE customer_order SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 @Where(clause = "deleted_at IS NULL")
 public class CustomerOrder extends BaseAudit {
 
@@ -89,7 +89,8 @@ public class CustomerOrder extends BaseAudit {
   @Column(name = "ship_reference", length = 191)
   private String shipReference;
 
-  @Lob private String notes;
+  @Column(name = "notes", columnDefinition = "text")
+  private String notes;
 
   @Column(name = "requested_at")
   private Instant requestedAt;
