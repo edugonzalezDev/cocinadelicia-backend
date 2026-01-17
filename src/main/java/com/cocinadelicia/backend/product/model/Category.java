@@ -8,11 +8,11 @@ import org.hibernate.annotations.Where;
 
 @Entity
 @Table(
-  name = "category",
-  uniqueConstraints = {
-    @UniqueConstraint(name = "uk_category_name", columnNames = "name"),
-    @UniqueConstraint(name = "uk_category_slug", columnNames = "slug")
-  })
+    name = "category",
+    uniqueConstraints = {
+      @UniqueConstraint(name = "uk_category_name", columnNames = "name"),
+      @UniqueConstraint(name = "uk_category_slug", columnNames = "slug")
+    })
 @Getter
 @Setter
 @NoArgsConstructor

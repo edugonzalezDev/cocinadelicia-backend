@@ -10,13 +10,11 @@ import org.springframework.stereotype.Repository;
 public interface ProductImageRepository extends JpaRepository<ProductImage, Long> {
 
   /**
-   * Lista de imágenes activas (no borradas) de un producto,
-   * ordenadas por sortOrder (y luego id por @OrderBy de la entidad).
+   * Lista de imágenes activas (no borradas) de un producto, ordenadas por sortOrder (y luego id
+   * por @OrderBy de la entidad).
    */
   List<ProductImage> findByProduct_IdOrderBySortOrderAsc(Long productId);
 
-  /**
-   * Imagen principal (isMain = true) del producto, si existe.
-   */
+  /** Imagen principal (isMain = true) del producto, si existe. */
   Optional<ProductImage> findFirstByProduct_IdAndIsMainTrue(Long productId);
 }

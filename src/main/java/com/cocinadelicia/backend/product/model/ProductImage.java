@@ -8,12 +8,12 @@ import org.hibernate.annotations.Where;
 
 @Entity
 @Table(
-  name = "product_image",
-  uniqueConstraints = {
-    @UniqueConstraint(
-      name = "uk_product_image_product_key",
-      columnNames = {"product_id", "object_key"})
-  })
+    name = "product_image",
+    uniqueConstraints = {
+      @UniqueConstraint(
+          name = "uk_product_image_product_key",
+          columnNames = {"product_id", "object_key"})
+    })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,8 +32,8 @@ public class ProductImage extends BaseAudit {
   private Product product;
 
   /**
-   * Clave estable del objeto en S3, ej: products/{productId}/{uuid}.webp
-   * No guardamos la URL completa para poder cambiar a CloudFront sin tocar la BD.
+   * Clave estable del objeto en S3, ej: products/{productId}/{uuid}.webp No guardamos la URL
+   * completa para poder cambiar a CloudFront sin tocar la BD.
    */
   @Column(name = "object_key", length = 512, nullable = false)
   private String objectKey;

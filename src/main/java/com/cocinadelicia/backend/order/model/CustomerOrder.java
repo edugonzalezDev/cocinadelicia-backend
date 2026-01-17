@@ -16,11 +16,11 @@ import org.hibernate.annotations.Where;
 
 @Entity
 @Table(
-  name = "customer_order",
-  indexes = {
-    @Index(name = "ix_order_user_created", columnList = "user_id, created_at"),
-    @Index(name = "ix_order_status_created", columnList = "status, created_at")
-  })
+    name = "customer_order",
+    indexes = {
+      @Index(name = "ix_order_user_created", columnList = "user_id, created_at"),
+      @Index(name = "ix_order_status_created", columnList = "status, created_at")
+    })
 @Getter
 @Setter
 @NoArgsConstructor
