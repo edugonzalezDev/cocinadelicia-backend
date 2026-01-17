@@ -32,6 +32,8 @@ public final class OrderMapper {
         order.getShipPostalCode(),
         order.getShipReference(),
         order.getNotes(),
+        order.getRequestedAt(),
+        order.getDeliveredAt(),
         itemDtos,
         order.getCreatedAt(),
         order.getUpdatedAt());

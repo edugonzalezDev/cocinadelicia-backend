@@ -1,3 +1,4 @@
+# src/main/resources/application-prod.yml
 server:
   port: ${SERVER_PORT:8080}
 
@@ -6,13 +7,13 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
-      minimum-idle: 2
-      idle-timeout: 60000
-      connection-timeout: 30000
-      max-lifetime: 1800000     # 30m < wait_timeout (Aurora default ~8h) --> OK
+      minimum-idle: 2 # mantener algunas conexiones listas
+      idle-timeout: 60000 # 60s
+      connection-timeout: 30000 # 30s
+      max-lifetime: 1800000     # 30min (debe ser menor al timeout del server)
       leak-detection-threshold: 20000   # (opcional) 20s para detectar conexiones no cerradas en dev/staging
 
   jpa:
@@ -22,7 +23,7 @@ spring:
     show-sql: false       # En prod suele ir false (puedes activar temporalmente si querés)
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQL8Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
 
   flyway:
@@ -58,3 +59,5 @@ app:
     server:
       dev: https://api.lacocinadelicia.com   # opcional (puede apuntar a prod)
       prod: https://api.lacocinadelicia.com
+  cdn:
+    base-url: https://dk9xtqc3ymebu.cloudfront.net

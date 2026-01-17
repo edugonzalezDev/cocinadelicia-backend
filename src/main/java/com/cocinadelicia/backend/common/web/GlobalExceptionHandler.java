@@ -30,7 +30,11 @@ public class GlobalExceptionHandler {
   public ApiError handleEmailConflict(EmailConflictException ex, WebRequest request) {
     log.warn("Email conflict: {}", ex.getMessage());
     return ApiError.of(
-      HttpStatus.CONFLICT.value(), "Conflict", ex.getMessage(), getPath(request), "EMAIL_CONFLICT");
+        HttpStatus.CONFLICT.value(),
+        "Conflict",
+        ex.getMessage(),
+        getPath(request),
+        "EMAIL_CONFLICT");
   }
 
   // 2) Falta de email (400)
@@ -39,14 +43,18 @@ public class GlobalExceptionHandler {
   public ApiError handleMissingEmail(MissingEmailException ex, WebRequest request) {
     log.info("Missing email: {}", ex.getMessage());
     return ApiError.of(
-      HttpStatus.BAD_REQUEST.value(), "Bad Request", ex.getMessage(), getPath(request), "MISSING_EMAIL");
+        HttpStatus.BAD_REQUEST.value(),
+        "Bad Request",
+        ex.getMessage(),
+        getPath(request),
+        "MISSING_EMAIL");
   }
 
   // 3) Validaciones @Valid (DTOs) → 400 con "fields"
   @ExceptionHandler(MethodArgumentNotValidException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public Map<String, Object> handleValidation(
-    MethodArgumentNotValidException ex, WebRequest request) {
+      MethodArgumentNotValidException ex, WebRequest request) {
 
     Map<String, String> fieldErrors = new HashMap<>();
     for (var error : ex.getBindingResult().getAllErrors()) {
@@ -73,44 +81,32 @@ public class GlobalExceptionHandler {
   public ApiError handleNotFoundEndpoint(NoHandlerFoundException ex, WebRequest request) {
     log.warn("No handler found for {} {}", ex.getHttpMethod(), ex.getRequestURL());
     return ApiError.of(
-      HttpStatus.NOT_FOUND.value(),
-      "Not Found",
-      "El recurso solicitado no existe",
-      getPath(request));
+        HttpStatus.NOT_FOUND.value(),
+        "Not Found",
+        "El recurso solicitado no existe",
+        getPath(request));
   }
 
   // 5) BadRequest de negocio — con code dominio (ej: ORDER_ITEMS_EMPTY, INVALID_STATUS_TRANSITION)
   @ExceptionHandler(BadRequestException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ApiError handleBadRequest(BadRequestException ex, WebRequest request) {
-    log.info(
-      "BadRequest code={} msg={} path={}",
-      ex.code(),
-      ex.getMessage(),
-      getPath(request));
+    log.info("BadRequest code={} msg={} path={}", ex.code(), ex.getMessage(), getPath(request));
     return ApiError.of(
-      HttpStatus.BAD_REQUEST.value(),
-      "Bad Request",
-      ex.getMessage(),
-      getPath(request),
-      ex.code());
+        HttpStatus.BAD_REQUEST.value(),
+        "Bad Request",
+        ex.getMessage(),
+        getPath(request),
+        ex.code());
   }
 
   // 6) NotFound de negocio — con code dominio (ej: ORDER_NOT_FOUND)
   @ExceptionHandler(NotFoundException.class)
   @ResponseStatus(HttpStatus.NOT_FOUND)
   public ApiError handleNotFoundBusiness(NotFoundException ex, WebRequest request) {
-    log.warn(
-      "NotFound code={} msg={} path={}",
-      ex.code(),
-      ex.getMessage(),
-      getPath(request));
+    log.warn("NotFound code={} msg={} path={}", ex.code(), ex.getMessage(), getPath(request));
     return ApiError.of(
-      HttpStatus.NOT_FOUND.value(),
-      "Not Found",
-      ex.getMessage(),
-      getPath(request),
-      ex.code());
+        HttpStatus.NOT_FOUND.value(), "Not Found", ex.getMessage(), getPath(request), ex.code());
   }
 
   // 7) Access Denied (403)
@@ -119,11 +115,11 @@ public class GlobalExceptionHandler {
   public ApiError handleAccessDenied(Exception ex, WebRequest request) {
     log.warn("AccessDenied on {}: {}", getPath(request), ex.getMessage());
     return ApiError.of(
-      HttpStatus.FORBIDDEN.value(),
-      "Forbidden",
-      "No tiene permisos para realizar esta acción.",
-      getPath(request),
-      "ACCESS_DENIED");
+        HttpStatus.FORBIDDEN.value(),
+        "Forbidden",
+        "No tiene permisos para realizar esta acción.",
+        getPath(request),
+        "ACCESS_DENIED");
   }
 
   // 8) Fallback genérico (500)
@@ -131,11 +127,11 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ApiError> handleGeneric(Exception ex, WebRequest request) {
     log.error("Unexpected error on {}: {}", getPath(request), ex.getMessage(), ex);
     ApiError body =
-      ApiError.of(
-        HttpStatus.INTERNAL_SERVER_ERROR.value(),
-        "Internal Server Error",
-        "Ocurrió un error inesperado. Si persiste, contacte al administrador.",
-        getPath(request));
+        ApiError.of(
+            HttpStatus.INTERNAL_SERVER_ERROR.value(),
+            "Internal Server Error",
+            "Ocurrió un error inesperado. Si persiste, contacte al administrador.",
+            getPath(request));
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
   }
 

@@ -8,6 +8,7 @@ generate_backend_snippets.sh
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+**/src/main/resources/ssl/*.*
 ### Logs ###
 /logs/
 *.log

@@ -7,6 +7,7 @@ import com.cocinadelicia.backend.common.model.enums.OrderStatus;
 import com.cocinadelicia.backend.user.model.AppUser;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
@@ -89,6 +90,12 @@ public class CustomerOrder extends BaseAudit {
   private String shipReference;
 
   @Lob private String notes;
+
+  @Column(name = "requested_at")
+  private Instant requestedAt;
+
+  @Column(name = "delivered_at")
+  private Instant deliveredAt;
 
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
   @Builder.Default

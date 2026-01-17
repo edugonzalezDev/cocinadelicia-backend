@@ -28,53 +28,53 @@ class SecurityConfig {
 
   @Bean
   SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
-    http
-      .cors(cors -> {})
-      .csrf(csrf -> csrf.disable())
-      .headers(h -> h.frameOptions(frame -> frame.sameOrigin())) // H2 en dev
-      .authorizeHttpRequests(
-        auth ->
-          auth
-            .requestMatchers(HttpMethod.OPTIONS, "/**")
-            .permitAll()
+    http.cors(cors -> {})
+        .csrf(csrf -> csrf.disable())
+        .headers(h -> h.frameOptions(frame -> frame.sameOrigin())) // H2 en dev
+        .authorizeHttpRequests(
+            auth ->
+                auth.requestMatchers(HttpMethod.OPTIONS, "/**")
+                    .permitAll()
+                    // públicos
+                    .requestMatchers(
+                        "/actuator/health",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/h2-console/**")
+                    .permitAll()
+                    // WebSocket
+                    .requestMatchers("/ws/**")
+                    .permitAll()
 
-            // públicos
-            .requestMatchers(
-              "/actuator/health",
-              "/v3/api-docs/**",
-              "/swagger-ui/**",
-              "/swagger-ui.html",
-              "/h2-console/**")
-            .permitAll()
+                    // Admin-only
+                    .requestMatchers("/admin/**")
+                    .hasRole("ADMIN")
+                    // ⬇️ NUEVO: API admin de catálogo
+                    .requestMatchers("/api/admin/catalog/**")
+                    .hasRole("ADMIN")
 
-            // 🔴 WebSocket/SockJS handshake: lo dejamos pasar, JWT se valida en STOMP
-            .requestMatchers("/ws/**")
-            .permitAll()
+                    // Chef o Admin
+                    .requestMatchers("/chef/**")
+                    .hasAnyRole("CHEF", "ADMIN")
 
-            // Admin-only
-            .requestMatchers("/admin/**")
-            .hasRole("ADMIN")
-            // Chef o Admin
-            .requestMatchers("/chef/**")
-            .hasAnyRole("CHEF", "ADMIN")
+                    // Endpoints de pedidos para staff
+                    .requestMatchers(
+                        "/api/orders/ops/**", "/api/orders/admin/**", "/api/orders/chef/**")
+                    .hasAnyRole("CHEF", "ADMIN")
 
-            // Endpoints de pedidos para staff (ops/admin/chef)
-            .requestMatchers(
-              "/api/orders/ops/**",
-              "/api/orders/admin/**",
-              "/api/orders/chef/**"
-            )
-            .hasAnyRole("CHEF", "ADMIN")
+                    // Catálogo público
+                    .requestMatchers("/api/catalog/**")
+                    .permitAll()
 
-            // Tu API (requiere token)
-            .requestMatchers("/api/**")
-            .authenticated()
-
-            .anyRequest()
-            .denyAll())
-      .oauth2ResourceServer(
-        oauth2 ->
-          oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+                    // Resto de /api requiere token
+                    .requestMatchers("/api/**")
+                    .authenticated()
+                    .anyRequest()
+                    .denyAll())
+        .oauth2ResourceServer(
+            oauth2 ->
+                oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
     return http.build();
   }
@@ -84,7 +84,7 @@ class SecurityConfig {
   JwtAuthenticationConverter jwtAuthenticationConverter() {
     var converter = new JwtAuthenticationConverter();
     converter.setJwtGrantedAuthoritiesConverter(
-      jwt -> (Collection<GrantedAuthority>) extractAuthoritiesFromJwt(jwt));
+        jwt -> (Collection<GrantedAuthority>) extractAuthoritiesFromJwt(jwt));
     return converter;
   }
 
@@ -92,9 +92,9 @@ class SecurityConfig {
     List<String> groups = jwt.getClaimAsStringList(groupsClaim);
     if (groups == null) groups = List.of();
     var roles =
-      groups.stream()
-        .map(g -> new SimpleGrantedAuthority("ROLE_" + g.toUpperCase()))
-        .collect(Collectors.toList());
+        groups.stream()
+            .map(g -> new SimpleGrantedAuthority("ROLE_" + g.toUpperCase()))
+            .collect(Collectors.toList());
 
     if (requiredAudience != null && !requiredAudience.isBlank()) {
       List<String> aud = jwt.getAudience();
@@ -109,14 +109,16 @@ class SecurityConfig {
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cors = new CorsConfiguration();
     cors.setAllowedOriginPatterns(
-      List.of(
-        "http://localhost:*",
-        "http://127.0.0.1:*",
-        "https://www.lacocinadelicia.com",
-        "https://cocinadelicia-frontend.netlify.app"));
+        List.of(
+            "https://localhost:*",
+            "https://127.0.0.1:*",
+            "https://www.lacocinadelicia.com",
+            "https://cocinadelicia-frontend.netlify.app",
+            "https://192.168.56.1:*",
+            "https://192.168.1.4:*"));
     cors.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     cors.setAllowedHeaders(
-      Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
     cors.setExposedHeaders(List.of("Location"));
 
     // 🔴 Necesario para SockJS con credenciales
@@ -129,4 +131,3 @@ class SecurityConfig {
     return source;
   }
 }
-

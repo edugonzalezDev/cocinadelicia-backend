@@ -7,8 +7,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Publica eventos WebSocket hacia /topic/orders.
- * Todos los eventos usan estructura: { type: "...", payload: OrderResponse }
+ * Publica eventos WebSocket hacia /topic/orders. Todos los eventos usan estructura: { type: "...",
+ * payload: OrderResponse }
  */
 @Log4j2
 @Component
@@ -19,20 +19,17 @@ public class OrderWebSocketPublisher {
 
   private final SimpMessagingTemplate messagingTemplate;
 
-  /**
-   * Envía un evento ORDER_UPDATED a todos los clientes suscriptos.
-   */
+  /** Envía un evento ORDER_UPDATED a todos los clientes suscriptos. */
   public void publishOrderUpdated(OrderResponse order) {
     if (order == null || order.id() == null) {
       log.warn("Intento de publicar ORDER_UPDATED con order nulo o sin id");
       return;
     }
 
-    OrderEventPayload event =
-      new OrderEventPayload("ORDER_UPDATED", order);
+    OrderEventPayload event = new OrderEventPayload("ORDER_UPDATED", order);
 
-    log.debug("Publishing ORDER_UPDATED event for orderId={} to topic={}",
-      order.id(), ORDERS_TOPIC);
+    log.debug(
+        "Publishing ORDER_UPDATED event for orderId={} to topic={}", order.id(), ORDERS_TOPIC);
 
     messagingTemplate.convertAndSend(ORDERS_TOPIC, event);
   }

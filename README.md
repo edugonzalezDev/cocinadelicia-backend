@@ -452,6 +452,123 @@ Además:
 - Cualquier error inesperado pasa por el handler genérico y devuelve **500** con mensaje controlado
   (sin exponer el stacktrace al cliente).
 
+---
+
+## ❗ Errores típicos en el flujo de Chef
+
+Esta sección resume los errores más frecuentes desde la perspectiva de la **vista de Chef** y del
+panel administrativo, alineados con las respuestas reales del backend.
+
+### 1. TRANSICIÓN_INVALIDA (HTTP 400)
+
+**Escenario:**  
+Intentar cambiar un pedido desde un estado no permitido por la lógica de negocio  
+(p. ej. `CREATED -> DELIVERED` directamente).
+
+**Request de ejemplo:**
+
+```http
+PATCH /api/orders/42/status HTTP/1.1
+Authorization: Bearer <token-con-rol-chef>
+Content-Type: application/json
+
+{
+  "status": "DELIVERED",
+  "note": "Marcado como entregado desde cocina"
+}
+```
+
+**Response:**
+
+```json
+{
+  "timestamp": "2025-11-23T15:32:10.123Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "No se puede pasar de CREATED a DELIVERED.",
+  "path": "/api/orders/42/status",
+  "code": "INVALID_STATUS_TRANSITION"
+}
+```
+
+---
+
+### 2. PEDIDO_NO_ENCONTRADO (HTTP 404)
+
+**Escenario:**  
+Intentar operar sobre un pedido inexistente o, en el caso de cliente, que no le pertenece.
+
+**Request de ejemplo:**
+
+```http
+PATCH /api/orders/999999/status HTTP/1.1
+Authorization: Bearer <token-con-rol-chef>
+Content-Type: application/json
+
+{
+  "status": "READY"
+}
+```
+
+**Response:**
+
+```json
+{
+  "timestamp": "2025-11-23T15:40:55.987Z",
+  "status": 404,
+  "error": "Not Found",
+  "message": "Pedido not encontrado.",
+  "path": "/api/orders/999999/status",
+  "code": "ORDER_NOT_FOUND"
+}
+```
+
+> Nota: En algunos casos de seguridad (por ejemplo, un cliente intentando acceder a un pedido de otro usuario), también se devuelve `ORDER_NOT_FOUND` para no filtrar información sobre la existencia del recurso.
+
+---
+
+### 3. PEDIDO_NO_VISIBLE_PARA_ROL (HTTP 403)
+
+**Escenario:**  
+Intentar cambiar el estado de un pedido sin tener el rol adecuado (por ejemplo, un usuario sin rol `ADMIN`/`CHEF` llamando al endpoint de cambio de estado).
+
+**Request de ejemplo:**
+
+```http
+PATCH /api/orders/42/status HTTP/1.1
+Authorization: Bearer <token-sin-rol-chef-ni-admin>
+Content-Type: application/json
+
+{
+  "status": "PREPARING"
+}
+```
+
+**Response:**
+
+```json
+{
+  "timestamp": "2025-11-23T15:45:02.456Z",
+  "status": 403,
+  "error": "Forbidden",
+  "message": "No tiene permisos para realizar esta acción.",
+  "path": "/api/orders/42/status",
+  "code": "ACCESS_DENIED"
+}
+```
+
+> En la documentación funcional podés referirte a este caso como  
+> **“PEDIDO_NO_VISIBLE_PARA_ROL”**, aunque el `code` técnico devuelto por la API sea `ACCESS_DENIED`.
+
+---
+
+### Resumen de códigos de error relevantes para Chef
+
+| Caso funcional                | HTTP | `code` técnico              |
+|------------------------------|------|-----------------------------|
+| TRANSICIÓN_INVALIDA          | 400  | `INVALID_STATUS_TRANSITION` |
+| PEDIDO_NO_ENCONTRADO         | 404  | `ORDER_NOT_FOUND`           |
+| PEDIDO_NO_VISIBLE_PARA_ROL   | 403  | `ACCESS_DENIED`             |
 
 ---
 
@@ -466,13 +583,13 @@ Además:
 
 ### Variables y Secrets requeridos (GitHub → Settings)
 - **Secrets**
-    - `EC2_HOST` → IP o hostname
-    - `EC2_USER` → usuario con sudo (p.ej. `ubuntu`)
-    - `EC2_SSH_KEY` → clave privada **PEM** (contenido)
-    - `EC2_SERVICE_NAME` → nombre del servicio `systemd` (p.ej. `cocinadelicia.service`)
-    - `DEPLOY_DIR` *(opcional)* → default: `/opt/cocinadelicia/backend`
+  - `EC2_HOST` → IP o hostname
+  - `EC2_USER` → usuario con sudo (p.ej. `ubuntu`)
+  - `EC2_SSH_KEY` → clave privada **PEM** (contenido)
+  - `EC2_SERVICE_NAME` → nombre del servicio `systemd` (p.ej. `cocinadelicia.service`)
+  - `DEPLOY_DIR` *(opcional)* → default: `/opt/cocinadelicia/backend`
 - **Opcionales** (si usás OIDC u otros)
-    - `AWS_REGION` si integrás otros pasos (no requerido para SSH puro)
+  - `AWS_REGION` si integrás otros pasos (no requerido para SSH puro)
 
 > El pipeline **falla** si:
 > - El mensaje de commit no respeta convención.
@@ -486,8 +603,8 @@ Además:
 **Estrategia actual:** EC2 con Java 17, JAR como servicio **systemd**, Nginx (o ALB) al frente.
 
 - **Ruta de despliegue remoto** (ej.): `/opt/cocinadelicia/backend`
-    - `releases/` → versiones fechadas
-    - `current.jar` → symlink al release activo
+  - `releases/` → versiones fechadas
+  - `current.jar` → symlink al release activo
 - **Reinicio**:
   ```bash
   sudo systemctl daemon-reload
