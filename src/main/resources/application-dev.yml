@@ -1,28 +1,42 @@
+# src/main/resources/application-dev.yml
 server:
-  port: 8080
+#  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   datasource:
-    url: jdbc:mysql://${HOST_HOSTINGER}:3306/${NOMBRE_DB}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: ${USUARIO_DB}
-    password: ${PASSWORD_DB}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 0
-      idle-timeout: 30000      # 30s
-      max-lifetime: 30000      # 30s < timeout del server
-      validation-timeout: 5000 # 5s
+      maximum-pool-size: 10
+      minimum-idle: 2 # mantener algunas conexiones listas
+      idle-timeout: 60000 # 60s
+      connection-timeout: 30000 # 30s
+      max-lifetime: 1800000     # 30min (debe ser menor al timeout del server)
+      leak-detection-threshold: 20000   # (opcional) 20s para detectar conexiones no cerradas en dev/staging
+
+  #    url: jdbc:mysql://${HOST_HOSTINGER}:3306/${NOMBRE_DB}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+#    username: ${USUARIO_DB}
+#    password: ${PASSWORD_DB}
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#    hikari:
+#      maximum-pool-size: 5
+#      minimum-idle: 0
+#      idle-timeout: 30000      # 30s
+#      max-lifetime: 30000      # 30s < timeout del server
+#      validation-timeout: 5000 # 5s
 
   jpa:
     hibernate:
 #      ddl-auto: none          # seguimos dejando Flyway como owner del schema
-    ddl-auto: none  # en dev cloud podemos recrear la BD en cada arranque
+    ddl-auto: validate  # en dev cloud podemos recrear la BD en cada arranque
     show-sql: true            # en dev cloud conviene ver SQL
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MariaDBDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
 
   flyway:
