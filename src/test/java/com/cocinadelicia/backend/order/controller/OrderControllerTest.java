@@ -16,6 +16,7 @@ import com.cocinadelicia.backend.order.dto.OrderItemResponse;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
 import com.cocinadelicia.backend.order.dto.UpdateOrderStatusRequest;
 import com.cocinadelicia.backend.order.service.OrderService;
+import com.cocinadelicia.backend.user.service.CurrentUserService;
 import com.cocinadelicia.backend.user.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -41,13 +42,15 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = OrderController.class)
 @Import({OrderControllerTest.MockConfig.class, OrderControllerTest.MethodSecurityConfig.class})
 @TestPropertySource(
-    properties = {"spring.security.oauth2.resourceserver.jwt.issuer-uri=disabled-for-tests"})
+  properties = {"spring.security.oauth2.resourceserver.jwt.issuer-uri=disabled-for-tests"})
 class OrderControllerTest {
 
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper om;
+
   @Autowired OrderService orderService;
   @Autowired UserService userService;
+  @Autowired CurrentUserService currentUserService;
 
   @TestConfiguration
   static class MockConfig {
@@ -62,156 +65,153 @@ class OrderControllerTest {
     }
 
     @Bean
+    CurrentUserService currentUserService() {
+      return Mockito.mock(CurrentUserService.class);
+    }
+
+    // Evita problemas por SpringDoc en slice tests si lo estás usando en el proyecto
+    @Bean
     SpringDocConfiguration springDocConfiguration() {
       return new SpringDocConfiguration();
     }
 
+    // Necesario para Resource Server en @WebMvcTest
     @Bean
     JwtDecoder jwtDecoder() {
       return Mockito.mock(JwtDecoder.class);
     }
   }
 
-  // ✅ Habilita @PreAuthorize en este slice de prueba
+  // Habilita @PreAuthorize en este slice de prueba
   @TestConfiguration
   @EnableMethodSecurity
   static class MethodSecurityConfig {}
 
-  // ✅ Admin con autoridad real
+  // Admin con autoridad real
   private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor adminJwt() {
     return jwt()
-        .jwt(
-            jwt -> {
-              jwt.subject("sub-123");
-              jwt.claim("email", "admin@test.com");
-            })
-        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+      .jwt(
+        jwt -> {
+          jwt.subject("sub-123");
+          jwt.claim("email", "admin@test.com");
+        })
+      .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
   }
 
-  // ✅ Sin roles/autorizaciones
+  // Sin roles/autorizaciones
   private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor noRoleJwt() {
     return jwt()
-        .jwt(
-            jwt -> {
-              jwt.subject("sub-abc");
-              jwt.claim("email", "user@test.com");
-            })
-        .authorities(); // vacío
+      .jwt(
+        jwt -> {
+          jwt.subject("sub-abc");
+          jwt.claim("email", "user@test.com");
+        })
+      .authorities(); // vacío
   }
 
-  /**
-   * IMPORTANTE: OrderResponse (record) ahora requiere también: - createdAt, updatedAt - items
-   * (List<OrderItemResponse>) - requestedAt, deliveredAt
-   *
-   * <p>(esto viene del error de compilación en Render)
-   */
   private OrderResponse sampleResponse(Long id, OrderStatus status) {
     Instant now = Instant.now();
 
-    // Tipado explícito para evitar que List.of() infiera List<Object>
     List<OrderItemResponse> items = List.of();
-
-    // requestedAt / deliveredAt (demo)
     Instant requestedAt = now;
     Instant deliveredAt = null;
 
     return new OrderResponse(
-        id,
-        status,
-        FulfillmentType.PICKUP,
-        CurrencyCode.UYU,
-        new BigDecimal("100.00"), // subtotal
-        BigDecimal.ZERO, // tax
-        BigDecimal.ZERO, // discount
-        new BigDecimal("100.00"), // total
-        "Eduardo", // shipName
-        "099", // shipPhone
-        "Calle 1", // shipLine1
-        null, // shipLine2
-        "MVD", // shipCity
-        null, // shipRegion
-        null, // shipPostalCode
-        null, // shipReference
-        "notes", // notes
-        now, // createdAt
-        now, // updatedAt
-        items, // items
-        requestedAt, // requestedAt
-        deliveredAt // deliveredAt
-        );
+      id,
+      status,
+      FulfillmentType.PICKUP,
+      CurrencyCode.UYU,
+      new BigDecimal("100.00"), // subtotal
+      BigDecimal.ZERO, // tax
+      BigDecimal.ZERO, // discount
+      new BigDecimal("100.00"), // total
+      "Eduardo", // shipName
+      "099", // shipPhone
+      "Calle 1", // shipLine1
+      null, // shipLine2
+      "MVD", // shipCity
+      null, // shipRegion
+      null, // shipPostalCode
+      null, // shipReference
+      "notes", // notes
+      now, // createdAt
+      now, // updatedAt
+      items, // items
+      requestedAt, // requestedAt
+      deliveredAt // deliveredAt
+    );
   }
 
   @BeforeEach
   void resetMocks() {
-    Mockito.reset(orderService, userService);
+    Mockito.reset(orderService, userService, currentUserService);
   }
 
   @Test
   void patchStatus_ok_returns200() throws Exception {
-    Mockito.when(userService.resolveUserIdFromJwt(any())).thenReturn(1L);
     Mockito.when(orderService.updateStatus(eq(10L), anyString(), any()))
-        .thenReturn(sampleResponse(10L, OrderStatus.PREPARING));
+      .thenReturn(sampleResponse(10L, OrderStatus.PREPARING));
 
     var body = new UpdateOrderStatusRequest(OrderStatus.PREPARING, "nota");
 
     mvc.perform(
-            patch("/api/orders/10/status")
-                .with(adminJwt())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(body)))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id").value(10))
-        .andExpect(jsonPath("$.status").value("PREPARING"));
+        patch("/api/orders/10/status")
+          .with(adminJwt())
+          .contentType(MediaType.APPLICATION_JSON)
+          .content(om.writeValueAsString(body)))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.id").value(10))
+      .andExpect(jsonPath("$.status").value("PREPARING"));
   }
 
   @Test
   void patchStatus_notFound_returns404() throws Exception {
     Mockito.when(orderService.updateStatus(eq(999L), anyString(), any()))
-        .thenThrow(new NotFoundException("ORDER_NOT_FOUND", "Pedido no encontrado."));
+      .thenThrow(new NotFoundException("ORDER_NOT_FOUND", "Pedido no encontrado."));
 
     var body = new UpdateOrderStatusRequest(OrderStatus.PREPARING, null);
 
     mvc.perform(
-            patch("/api/orders/999/status")
-                .with(adminJwt())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(body)))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
+        patch("/api/orders/999/status")
+          .with(adminJwt())
+          .contentType(MediaType.APPLICATION_JSON)
+          .content(om.writeValueAsString(body)))
+      .andExpect(status().isNotFound())
+      .andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
   }
 
   @Test
   void patchStatus_invalidTransition_returns400() throws Exception {
     Mockito.when(orderService.updateStatus(eq(10L), anyString(), any()))
-        .thenThrow(
-            new BadRequestException(
-                "INVALID_STATUS_TRANSITION", "No se puede pasar de CREATED a DELIVERED"));
+      .thenThrow(
+        new BadRequestException(
+          "INVALID_STATUS_TRANSITION", "No se puede pasar de CREATED a DELIVERED"));
 
     var body = new UpdateOrderStatusRequest(OrderStatus.DELIVERED, null);
 
     mvc.perform(
-            patch("/api/orders/10/status")
-                .with(adminJwt())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(body)))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_STATUS_TRANSITION"));
+        patch("/api/orders/10/status")
+          .with(adminJwt())
+          .contentType(MediaType.APPLICATION_JSON)
+          .content(om.writeValueAsString(body)))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("INVALID_STATUS_TRANSITION"));
   }
 
   @Test
   void patchStatus_missingStatus_returns400() throws Exception {
     Mockito.when(orderService.updateStatus(eq(10L), anyString(), any()))
-        .thenThrow(new BadRequestException("STATUS_REQUIRED", "El estado es obligatorio."));
+      .thenThrow(new BadRequestException("STATUS_REQUIRED", "El estado es obligatorio."));
 
     var body = new UpdateOrderStatusRequest(null, "nota");
 
     mvc.perform(
-            patch("/api/orders/10/status")
-                .with(adminJwt())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(body)))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("STATUS_REQUIRED"));
+        patch("/api/orders/10/status")
+          .with(adminJwt())
+          .contentType(MediaType.APPLICATION_JSON)
+          .content(om.writeValueAsString(body)))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("STATUS_REQUIRED"));
   }
 
   @Test
@@ -219,11 +219,11 @@ class OrderControllerTest {
     var body = new UpdateOrderStatusRequest(OrderStatus.PREPARING, "nota");
 
     mvc.perform(
-            patch("/api/orders/10/status")
-                .with(csrf())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(body)))
-        .andExpect(status().isUnauthorized());
+        patch("/api/orders/10/status")
+          .with(csrf())
+          .contentType(MediaType.APPLICATION_JSON)
+          .content(om.writeValueAsString(body)))
+      .andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -231,10 +231,10 @@ class OrderControllerTest {
     var body = new UpdateOrderStatusRequest(OrderStatus.PREPARING, "nota");
 
     mvc.perform(
-            patch("/api/orders/10/status")
-                .with(noRoleJwt())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(body)))
-        .andExpect(status().isForbidden());
+        patch("/api/orders/10/status")
+          .with(noRoleJwt())
+          .contentType(MediaType.APPLICATION_JSON)
+          .content(om.writeValueAsString(body)))
+      .andExpect(status().isForbidden());
   }
 }
