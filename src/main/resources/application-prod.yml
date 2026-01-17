@@ -9,6 +9,8 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
+      # ↓↓↓ Clave para que Aurora pueda pausar
+      minimum-idle: 0            # antes: 2 (esto mantenía 2 conexiones abiertas SIEMPRE)
       maximum-pool-size: 10
       minimum-idle: 2 # mantener algunas conexiones listas
       idle-timeout: 60000 # 60s
@@ -18,13 +20,14 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: none        # Flyway controla el schema
+      ddl-auto: none
     open-in-view: false
-    show-sql: false       # En prod suele ir false (puedes activar temporalmente si querés)
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
+
 
   flyway:
     enabled: true
@@ -61,3 +64,30 @@ app:
       prod: https://api.lacocinadelicia.com
   cdn:
     base-url: https://dk9xtqc3ymebu.cloudfront.net
+
+management:
+  health:
+    db:
+      enabled: false   # health no consulta la DB
+  endpoint:
+    health:
+      show-details: never
+
+#Opción mejor (health groups: liveness/readiness)
+#
+#  Hacé que el ALB / pipeline consulte /actuator/health/liveness (no DB)
+#
+#  Dejá la DB solo para /actuator/health/readiness si querés un chequeo profundo.
+#
+#management:
+#  endpoint:
+#    health:
+#      probes:
+#        enabled: true
+#  endpoints:
+#    web:
+#      exposure:
+#        include: health,info
+#  health:
+#    db:
+#      enabled: true
