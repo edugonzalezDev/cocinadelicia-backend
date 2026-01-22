@@ -47,6 +47,8 @@ cdd:
     required-audience: ${COGNITO_APP_CLIENT_ID:}
 
 app:
+  s3:
+    images-bucket: cocinadelicia-images-dev
   openapi:
     server:
       dev: https://192.168.1.4:8443
