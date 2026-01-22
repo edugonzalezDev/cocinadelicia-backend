@@ -9,12 +9,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ProductImageRepository extends JpaRepository<ProductImage, Long> {
 
-  /**
-   * Lista de imágenes activas (no borradas) de un producto, ordenadas por sortOrder (y luego id
-   * por @OrderBy de la entidad).
-   */
-  List<ProductImage> findByProduct_IdOrderBySortOrderAsc(Long productId);
+  // ✅ Orden: sortOrder ASC y luego createdAt ASC (si tu BaseAudit no tiene createdAt, ver preguntas
+  // al final)
+  List<ProductImage> findByProduct_IdOrderBySortOrderAscCreatedAtAsc(Long productId);
 
-  /** Imagen principal (isMain = true) del producto, si existe. */
   Optional<ProductImage> findFirstByProduct_IdAndIsMainTrue(Long productId);
+
+  boolean existsByProduct_IdAndIsMainTrue(Long productId);
 }

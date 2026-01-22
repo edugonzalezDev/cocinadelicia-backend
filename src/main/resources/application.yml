@@ -39,6 +39,10 @@ cognito:
   # valor por defecto, lo sobreescriben los profiles
   domain: ${COGNITO_DOMAIN:cdd-auth.auth.us-east-1.amazoncognito.com}
 
+app:
+  s3:
+    region: us-east-1
+
 springdoc:
   swagger-ui:
     urlsPrimaryName: public

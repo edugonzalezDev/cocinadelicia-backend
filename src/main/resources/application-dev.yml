@@ -58,6 +58,8 @@ cdd:
     required-audience: ${COGNITO_APP_CLIENT_ID:}
 
 app:
+  s3:
+    images-bucket: cocinadelicia-images-dev
   openapi:
     server:
       dev: https://cocinadelicia-backend.onrender.com
