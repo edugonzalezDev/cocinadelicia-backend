@@ -23,5 +23,7 @@ spring:
     enabled: false
 
 app:
+  s3:
+    images-bucket: fake-bucket-for-tests
   cdn:
     base-url: http://localhost:0/fake-cdn-url-for-tests
