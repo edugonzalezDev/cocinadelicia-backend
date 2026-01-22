@@ -58,6 +58,8 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 # application-prod.yml
 app:
+  s3:
+    images-bucket: cocinadelicia-images-prod
   openapi:
     server:
       dev: https://api.lacocinadelicia.com   # opcional (puede apuntar a prod)
