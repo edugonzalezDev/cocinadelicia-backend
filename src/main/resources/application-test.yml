@@ -6,3 +6,6 @@ spring:
         jwt:
           # IMPORTANTe para tests: evitar llamadas externas y placeholders
           jwk-set-uri: http://localhost:0/fake-jwks # no se consulta hasta que se "decode"
+app:
+  cdn:
+    base-url: http://localhost:0/fake-cdn-url-for-tests
