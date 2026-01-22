@@ -10,6 +10,7 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       # ↓↓↓ Clave para que Aurora pueda pausar
+#      minimum-idle: 0            # antes: 2 (esto mantenía 2 conexiones abiertas SIEMPRE)
       maximum-pool-size: 10
       minimum-idle: 2 # mantener algunas conexiones listas
       idle-timeout: 60000 # 60s
@@ -57,8 +58,6 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 # application-prod.yml
 app:
-  s3:
-    images-bucket: cocinadelicia-images-prod
   openapi:
     server:
       dev: https://api.lacocinadelicia.com   # opcional (puede apuntar a prod)
