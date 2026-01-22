@@ -1,11 +1,27 @@
-# src/main/resources/application-test.yml
+# src/test/resources/application-test.yml
 spring:
   security:
     oauth2:
       resourceserver:
         jwt:
-          # IMPORTANTe para tests: evitar llamadas externas y placeholders
-          jwk-set-uri: http://localhost:0/fake-jwks # no se consulta hasta que se "decode"
+          jwk-set-uri: http://localhost:0/fake-jwks
+
+  # ✅ DB embebida para que @SpringBootTest cargue contexto en CI
+  datasource:
+    url: jdbc:h2:mem:cdd_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+
+  # ✅ si tus migraciones son Postgres-only, en tests es mejor apagar Flyway
+  flyway:
+    enabled: false
+
 app:
   cdn:
     base-url: http://localhost:0/fake-cdn-url-for-tests
