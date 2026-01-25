@@ -15,7 +15,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: none
     open-in-view: false
 
   # ✅ si tus migraciones son Postgres-only, en tests es mejor apagar Flyway

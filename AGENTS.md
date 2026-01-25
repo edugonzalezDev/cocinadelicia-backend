@@ -64,7 +64,7 @@ Migraciones con Flyway en `src/main/resources/db/migration`.
 ---
 
 ## Checklist de Done (obligatorio)
-- `mvn test` pasa
+- `mvwn test` pasa
 - No warnings críticos al levantar la app
 - DTOs validados si aplica
 - Si tocaste DB ⇒ migration nueva aplicada correctamente
@@ -101,7 +101,7 @@ description: Implementar un endpoint REST en Cocina DeLicia backend respetando c
     - Controller test (MockMvc) si corresponde
 
 ## Done
-- `mvn test` ok
+- `mvwn test` ok
 - No hardcode de secrets/config
 - Si hay schema: migration nueva en `db/migration`
 
@@ -121,7 +121,7 @@ description: Corregir un bug en backend con enfoque reproducible: identificar ca
 4) Fix:
     - Cambios mínimos en `service/impl`, `domain`, o `repository`.
 5) Verificación:
-    - `mvn test`
+    - `mvwn test`
     - Checklist de impacto (seguridad, DB, websockets)
 
 ## Reglas
@@ -155,7 +155,7 @@ description: Implementar o corregir flujo de imágenes (presigned upload, CDN UR
 - Controller test para endpoints admin (si están cubiertos)
 
 ## Done
-- `mvn test`
+- `mvwn test`
 - No logging de URLs presign completas si contienen query sensitive (firma)
 
 ---
