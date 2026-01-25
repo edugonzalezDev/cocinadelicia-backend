@@ -56,7 +56,9 @@ public class CatalogController {
       Lista paginada de productos activos del catálogo.
 
       Filtros soportados:
+      - q (opcional): texto de búsqueda en nombre, descripción y tags.
       - categorySlug (opcional): filtra por categoría.
+      - availableOnly (opcional): si es true, solo productos con variantes disponibles.
       - featured (opcional): si es true, solo productos con variantes destacadas.
       - dailyMenu (opcional): si es true, solo productos marcados como menú del día.
       - new (opcional): si es true, solo productos nuevos.
@@ -73,9 +75,17 @@ public class CatalogController {
       })
   @GetMapping("/products")
   public ResponseEntity<PageResponse<ProductSummaryResponse>> getProducts(
+      @Parameter(description = "Texto de búsqueda (busca en nombre, descripción y tags)", example = "milanesa")
+          @RequestParam(name = "q", required = false)
+          String searchQuery,
       @Parameter(description = "Slug de la categoría a filtrar (opcional)", example = "empanadas")
           @RequestParam(name = "categorySlug", required = false)
           String categorySlug,
+      @Parameter(
+              description = "Si es true, solo productos con variantes disponibles",
+              example = "true")
+          @RequestParam(name = "availableOnly", required = false)
+          Boolean availableOnly,
       @Parameter(
               description = "Si es true, solo productos con variantes destacadas",
               example = "true")
@@ -93,13 +103,15 @@ public class CatalogController {
 
     var filter =
         new CatalogFilter(
+            searchQuery,
             categorySlug,
             pageable.getPageNumber(),
             pageable.getPageSize(),
             pageable.getSort(),
             featured,
             dailyMenu,
-            isNew);
+            isNew,
+            availableOnly);
 
     return ResponseEntity.ok(catalogService.getProducts(filter));
   }

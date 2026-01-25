@@ -1,0 +1,30 @@
+# Allow: lectura y diagnóstico
+prefix_rule(pattern=["git", "status"], decision="allow", justification="Safe read-only")
+prefix_rule(pattern=["git", "diff"], decision="allow", justification="Safe read-only")
+prefix_rule(pattern=["ls"], decision="allow", justification="Safe read-only")
+prefix_rule(pattern=["cat"], decision="allow", justification="Safe read-only")
+
+# Allow: tests backend
+prefix_rule(pattern=["mvn", "test"], decision="allow", justification="Run backend tests")
+prefix_rule(pattern=["./mvnw", "test"], decision="allow", justification="Run backend tests")
+
+# Prompt: builds / package
+prefix_rule(pattern=["mvn", "package"], decision="prompt", justification="Build can be slow; confirm")
+prefix_rule(pattern=["./mvnw", "package"], decision="prompt", justification="Build can be slow; confirm")
+prefix_rule(pattern=["mvn", "verify"], decision="prompt", justification="Can be slow; confirm")
+prefix_rule(pattern=["./mvnw", "verify"], decision="prompt", justification="Can be slow; confirm")
+
+# Prompt: cloud/infra/deploy
+prefix_rule(pattern=["aws"], decision="prompt", justification="Cloud operations require confirmation")
+prefix_rule(pattern=["terraform"], decision="prompt", justification="Infra changes require confirmation")
+prefix_rule(pattern=["docker"], decision="prompt", justification="May affect local system")
+prefix_rule(pattern=["systemctl"], decision="prompt", justification="Controls services")
+
+# Prompt: pushes/remote
+prefix_rule(pattern=["git", "push"], decision="prompt", justification="Never push without approval")
+prefix_rule(pattern=["ssh"], decision="prompt", justification="Remote access requires confirmation")
+prefix_rule(pattern=["scp"], decision="prompt", justification="Deploy/upload requires confirmation")
+
+# Deny: destructivo
+prefix_rule(pattern=["rm", "-rf"], decision="forbidden", justification="Destructive command")
+prefix_rule(pattern=["dropdb"], decision="forbidden", justification="Destructive command")
