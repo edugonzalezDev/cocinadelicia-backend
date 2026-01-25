@@ -58,9 +58,10 @@ public class CatalogServiceImpl implements CatalogService {
     Specification<Product> spec = buildSpecification(filter);
 
     log.info(
-        "Catalog.getProducts RECIBIDO → searchQuery={} categorySlug={} availableOnly={} featured={} dailyMenu={} isNew={} page={} size={}",
+        "Catalog.getProducts RECIBIDO → searchQuery={} categorySlug={} tagSlugs={} availableOnly={} featured={} dailyMenu={} isNew={} page={} size={}",
         filter.searchQuery(),
         filter.categorySlug(),
+        filter.tagSlugs(),
         filter.availableOnly(),
         filter.featured(),
         filter.dailyMenu(),
@@ -92,6 +93,11 @@ public class CatalogServiceImpl implements CatalogService {
     if (filter.categorySlug() != null && !filter.categorySlug().isBlank()) {
       spec = spec.and(ProductSpecifications.hasCategory(filter.categorySlug()));
       log.debug("Aplicado filtro: categorySlug='{}'", filter.categorySlug());
+    }
+
+    if (filter.tagSlugs() != null && !filter.tagSlugs().isEmpty()) {
+      spec = spec.and(ProductSpecifications.hasTags(filter.tagSlugs()));
+      log.debug("Aplicado filtro: tagSlugs={}", filter.tagSlugs());
     }
 
     if (Boolean.TRUE.equals(filter.availableOnly())) {

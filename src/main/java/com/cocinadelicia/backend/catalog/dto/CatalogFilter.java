@@ -2,6 +2,7 @@
 package com.cocinadelicia.backend.catalog.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
 import org.springframework.data.domain.Sort;
 
 @Schema(description = "Filtros para búsqueda de productos del catálogo público")
@@ -32,4 +33,8 @@ public record CatalogFilter(
     @Schema(
             description = "Si true, solo productos activos con variantes disponibles",
             example = "true")
-        Boolean availableOnly) {}
+        Boolean availableOnly,
+    @Schema(
+            description = "Lista de slugs de tags para filtrar (AND). Ej: [\"vegetariano\", \"sin-azucar\"]",
+            example = "[\"vegetariano\", \"sin-gluten\"]")
+        List<String> tagSlugs) {}

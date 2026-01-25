@@ -58,6 +58,7 @@ public class CatalogController {
       Filtros soportados:
       - q (opcional): búsqueda de texto en nombre, descripción y tags.
       - categorySlug (opcional): filtra por categoría.
+      - tags (opcional): lista de slugs de tags (AND). Ej: vegetariano,sin-azucar
       - availableOnly (opcional): si es true, solo productos con variantes disponibles.
       - featured (opcional): si es true, solo productos con variantes destacadas.
       - dailyMenu (opcional): si es true, solo productos marcados como menú del día.
@@ -83,6 +84,11 @@ public class CatalogController {
       @Parameter(description = "Slug de la categoría a filtrar (opcional)", example = "empanadas")
           @RequestParam(name = "categorySlug", required = false)
           String categorySlug,
+      @Parameter(
+              description = "Lista de slugs de tags para filtrar (AND). Separados por coma",
+              example = "vegetariano,sin-gluten")
+          @RequestParam(name = "tags", required = false)
+          java.util.List<String> tagSlugs,
       @Parameter(
               description = "Si es true, solo productos con variantes disponibles",
               example = "true")
@@ -113,7 +119,8 @@ public class CatalogController {
             featured,
             dailyMenu,
             isNew,
-            availableOnly);
+            availableOnly,
+            tagSlugs);
 
     return ResponseEntity.ok(catalogService.getProducts(filter));
   }
