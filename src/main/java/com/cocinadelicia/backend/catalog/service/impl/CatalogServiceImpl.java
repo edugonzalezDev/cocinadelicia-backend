@@ -58,7 +58,7 @@ public class CatalogServiceImpl implements CatalogService {
     Specification<Product> spec = buildSpecification(filter);
 
     log.info(
-        "Catalog.getProducts searchQuery={} categorySlug={} availableOnly={} featured={} dailyMenu={} isNew={} page={} size={}",
+        "Catalog.getProducts RECIBIDO → searchQuery={} categorySlug={} availableOnly={} featured={} dailyMenu={} isNew={} page={} size={}",
         filter.searchQuery(),
         filter.categorySlug(),
         filter.availableOnly(),
@@ -70,6 +70,13 @@ public class CatalogServiceImpl implements CatalogService {
 
     Page<Product> page = productRepository.findAll(spec, pageable);
 
+    log.debug(
+        "Catalog.getProducts RESULTADO → totalElements={} totalPages={} currentPage={} hasContent={}",
+        page.getTotalElements(),
+        page.getTotalPages(),
+        page.getNumber(),
+        page.hasContent());
+
     Page<ProductSummaryResponse> mapped = page.map(this::toProductSummary);
     return PageResponse.from(mapped);
   }
@@ -79,26 +86,32 @@ public class CatalogServiceImpl implements CatalogService {
 
     if (filter.searchQuery() != null && !filter.searchQuery().isBlank()) {
       spec = spec.and(ProductSpecifications.searchText(filter.searchQuery()));
+      log.debug("Aplicado filtro: searchText='{}'", filter.searchQuery());
     }
 
     if (filter.categorySlug() != null && !filter.categorySlug().isBlank()) {
       spec = spec.and(ProductSpecifications.hasCategory(filter.categorySlug()));
+      log.debug("Aplicado filtro: categorySlug='{}'", filter.categorySlug());
     }
 
     if (Boolean.TRUE.equals(filter.availableOnly())) {
       spec = spec.and(ProductSpecifications.hasAvailableVariant());
+      log.debug("Aplicado filtro: availableOnly=true");
     }
 
     if (Boolean.TRUE.equals(filter.featured())) {
       spec = spec.and(ProductSpecifications.hasFeaturedVariant());
+      log.debug("Aplicado filtro: featured=true");
     }
 
     if (Boolean.TRUE.equals(filter.dailyMenu())) {
       spec = spec.and(ProductSpecifications.hasDailyMenuVariant());
+      log.debug("Aplicado filtro: dailyMenu=true");
     }
 
     if (Boolean.TRUE.equals(filter.isNew())) {
       spec = spec.and(ProductSpecifications.hasNewVariant());
+      log.debug("Aplicado filtro: isNew=true");
     }
 
     return spec;
