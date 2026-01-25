@@ -6,6 +6,10 @@ import org.springframework.data.domain.Sort;
 
 @Schema(description = "Filtros para búsqueda de productos del catálogo público")
 public record CatalogFilter(
+    @Schema(
+            description = "Texto de búsqueda (busca en nombre, descripción y tags)",
+            example = "milanesa")
+        String searchQuery,
     @Schema(description = "Slug de la categoría a filtrar (opcional)", example = "empanadas")
         String categorySlug,
     @Schema(description = "Número de página (0-based)", example = "0") int page,
@@ -24,4 +28,8 @@ public record CatalogFilter(
             description =
                 "Filtrar solo productos \"nuevos\" (al menos una variante marcada como nueva)",
             example = "true")
-        Boolean isNew) {}
+        Boolean isNew,
+    @Schema(
+            description = "Si true, solo productos activos con variantes disponibles",
+            example = "true")
+        Boolean availableOnly) {}
