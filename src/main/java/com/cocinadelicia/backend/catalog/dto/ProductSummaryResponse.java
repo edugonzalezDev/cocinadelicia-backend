@@ -1,7 +1,6 @@
 // src/main/java/com/cocinadelicia/backend/catalog/dto/ProductSummaryResponse.java
 package com.cocinadelicia.backend.catalog.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
@@ -68,7 +67,6 @@ public record ProductSummaryResponse(
     @Schema(description = "Indica si el producto forma parte del menú del día", example = "false")
         boolean dailyMenu,
     @Schema(description = "Indica si el producto es \"nuevo\" en el catálogo", example = "true")
-        @JsonProperty("new")
         boolean isNew,
 
     // Variantes
