@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
@@ -50,11 +51,13 @@ public class Product extends BaseAudit {
   private boolean isActive = true;
 
   @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+  @BatchSize(size = 20)
   @Builder.Default
   private List<ProductVariant> variants = new ArrayList<>();
 
   @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
   @OrderBy("sortOrder ASC, id ASC")
+  @BatchSize(size = 20)
   @Builder.Default
   private List<ProductImage> images = new ArrayList<>();
 
@@ -68,6 +71,7 @@ public class Product extends BaseAudit {
           @UniqueConstraint(
               name = "uk_product_tag",
               columnNames = {"product_id", "tag_id"}))
+  @BatchSize(size = 20)
   @Builder.Default
   private Set<Tag> tags = new HashSet<>();
 }

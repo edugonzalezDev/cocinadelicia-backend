@@ -4,7 +4,9 @@ package com.cocinadelicia.backend.product.repository;
 import com.cocinadelicia.backend.product.model.PriceHistory;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -35,4 +37,27 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
 """)
   Optional<PriceHistory> findActivePriceEntry(
       @Param("variantId") Long variantId, @Param("now") Instant now);
+
+  /**
+   * Query batch optimizada para obtener precios actuales de múltiples variantes.
+   * Reduce N+1 queries a una sola consulta.
+   */
+  @Query(
+"""
+  select ph
+  from PriceHistory ph
+  where ph.productVariant.id in :variantIds
+    and ph.validFrom <= :now
+    and (ph.validTo is null or ph.validTo > :now)
+  order by ph.productVariant.id, ph.validFrom desc
+""")
+  List<PriceHistory> findCurrentPricesForVariants(
+      @Param("variantIds") Set<Long> variantIds, @Param("now") Instant now);
+
+  /**
+   * Sobrecarga con timestamp actual por defecto.
+   */
+  default List<PriceHistory> findCurrentPricesForVariants(Set<Long> variantIds) {
+    return findCurrentPricesForVariants(variantIds, Instant.now());
+  }
 }

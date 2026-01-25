@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
 
@@ -63,6 +64,7 @@ public class ProductVariant extends BaseAudit {
   private boolean isNew = false;
 
   @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
+  @BatchSize(size = 50)
   @Builder.Default
   private List<PriceHistory> priceHistory = new ArrayList<>();
 

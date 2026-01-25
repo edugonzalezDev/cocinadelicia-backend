@@ -56,7 +56,10 @@ public class CatalogController {
       Lista paginada de productos activos del catálogo.
 
       Filtros soportados:
+      - q (opcional): búsqueda de texto en nombre, descripción y tags.
       - categorySlug (opcional): filtra por categoría.
+      - tags (opcional): lista de slugs de tags (AND). Ej: vegetariano,sin-azucar
+      - availableOnly (opcional): si es true, solo productos con variantes disponibles.
       - featured (opcional): si es true, solo productos con variantes destacadas.
       - dailyMenu (opcional): si es true, solo productos marcados como menú del día.
       - new (opcional): si es true, solo productos nuevos.
@@ -73,9 +76,24 @@ public class CatalogController {
       })
   @GetMapping("/products")
   public ResponseEntity<PageResponse<ProductSummaryResponse>> getProducts(
+      @Parameter(
+              description = "Texto de búsqueda (busca en nombre, descripción y tags)",
+              example = "milanesa")
+          @RequestParam(name = "q", required = false)
+          String searchQuery,
       @Parameter(description = "Slug de la categoría a filtrar (opcional)", example = "empanadas")
           @RequestParam(name = "categorySlug", required = false)
           String categorySlug,
+      @Parameter(
+              description = "Lista de slugs de tags para filtrar (AND). Separados por coma",
+              example = "vegetariano,sin-gluten")
+          @RequestParam(name = "tags", required = false)
+          java.util.List<String> tagSlugs,
+      @Parameter(
+              description = "Si es true, solo productos con variantes disponibles",
+              example = "true")
+          @RequestParam(name = "availableOnly", required = false)
+          Boolean availableOnly,
       @Parameter(
               description = "Si es true, solo productos con variantes destacadas",
               example = "true")
@@ -93,13 +111,16 @@ public class CatalogController {
 
     var filter =
         new CatalogFilter(
+            searchQuery,
             categorySlug,
             pageable.getPageNumber(),
             pageable.getPageSize(),
             pageable.getSort(),
             featured,
             dailyMenu,
-            isNew);
+            isNew,
+            availableOnly,
+            tagSlugs);
 
     return ResponseEntity.ok(catalogService.getProducts(filter));
   }

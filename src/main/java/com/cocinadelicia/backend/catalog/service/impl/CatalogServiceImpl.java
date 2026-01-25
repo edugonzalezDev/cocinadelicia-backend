@@ -12,6 +12,7 @@ import com.cocinadelicia.backend.product.model.ProductVariant;
 import com.cocinadelicia.backend.product.model.Tag;
 import com.cocinadelicia.backend.product.repository.CategoryRepository;
 import com.cocinadelicia.backend.product.repository.ProductRepository;
+import com.cocinadelicia.backend.product.repository.spec.ProductSpecifications;
 import com.cocinadelicia.backend.product.service.PriceService;
 import com.cocinadelicia.backend.product.service.dto.PriceInfo;
 import java.util.Comparator;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,25 +55,72 @@ public class CatalogServiceImpl implements CatalogService {
 
     Pageable pageable = PageRequest.of(filter.page(), filter.size(), sort);
 
-    boolean hasCategory = filter.categorySlug() != null && !filter.categorySlug().isBlank();
+    Specification<Product> spec = buildSpecification(filter);
 
-    Page<Product> page;
-    if (hasCategory) {
-      log.info(
-          "Catalog.getProducts categorySlug={} page={} size={}",
-          filter.categorySlug(),
-          filter.page(),
-          filter.size());
-      page =
-          productRepository.findByIsActiveTrueAndCategory_SlugIgnoreCase(
-              filter.categorySlug(), pageable);
-    } else {
-      log.info("Catalog.getProducts ALL page={} size={}", filter.page(), filter.size());
-      page = productRepository.findByIsActiveTrue(pageable);
-    }
+    log.info(
+        "Catalog.getProducts RECIBIDO → searchQuery={} categorySlug={} tagSlugs={} availableOnly={} featured={} dailyMenu={} isNew={} page={} size={}",
+        filter.searchQuery(),
+        filter.categorySlug(),
+        filter.tagSlugs(),
+        filter.availableOnly(),
+        filter.featured(),
+        filter.dailyMenu(),
+        filter.isNew(),
+        filter.page(),
+        filter.size());
+
+    Page<Product> page = productRepository.findAll(spec, pageable);
+
+    log.debug(
+        "Catalog.getProducts RESULTADO → totalElements={} totalPages={} currentPage={} hasContent={}",
+        page.getTotalElements(),
+        page.getTotalPages(),
+        page.getNumber(),
+        page.hasContent());
 
     Page<ProductSummaryResponse> mapped = page.map(this::toProductSummary);
     return PageResponse.from(mapped);
+  }
+
+  private Specification<Product> buildSpecification(CatalogFilter filter) {
+    Specification<Product> spec = ProductSpecifications.isActive();
+
+    if (filter.searchQuery() != null && !filter.searchQuery().isBlank()) {
+      spec = spec.and(ProductSpecifications.searchText(filter.searchQuery()));
+      log.debug("Aplicado filtro: searchText='{}'", filter.searchQuery());
+    }
+
+    if (filter.categorySlug() != null && !filter.categorySlug().isBlank()) {
+      spec = spec.and(ProductSpecifications.hasCategory(filter.categorySlug()));
+      log.debug("Aplicado filtro: categorySlug='{}'", filter.categorySlug());
+    }
+
+    if (filter.tagSlugs() != null && !filter.tagSlugs().isEmpty()) {
+      spec = spec.and(ProductSpecifications.hasTags(filter.tagSlugs()));
+      log.debug("Aplicado filtro: tagSlugs={}", filter.tagSlugs());
+    }
+
+    if (Boolean.TRUE.equals(filter.availableOnly())) {
+      spec = spec.and(ProductSpecifications.hasAvailableVariant());
+      log.debug("Aplicado filtro: availableOnly=true");
+    }
+
+    if (Boolean.TRUE.equals(filter.featured())) {
+      spec = spec.and(ProductSpecifications.hasFeaturedVariant());
+      log.debug("Aplicado filtro: featured=true");
+    }
+
+    if (Boolean.TRUE.equals(filter.dailyMenu())) {
+      spec = spec.and(ProductSpecifications.hasDailyMenuVariant());
+      log.debug("Aplicado filtro: dailyMenu=true");
+    }
+
+    if (Boolean.TRUE.equals(filter.isNew())) {
+      spec = spec.and(ProductSpecifications.hasNewVariant());
+      log.debug("Aplicado filtro: isNew=true");
+    }
+
+    return spec;
   }
 
   // ---------- Mappers ----------
