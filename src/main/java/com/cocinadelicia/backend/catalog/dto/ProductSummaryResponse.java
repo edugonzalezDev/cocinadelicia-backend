@@ -1,6 +1,7 @@
 // src/main/java/com/cocinadelicia/backend/catalog/dto/ProductSummaryResponse.java
 package com.cocinadelicia.backend.catalog.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
@@ -26,12 +27,18 @@ public record ProductSummaryResponse(
             example = "empanadas")
         String categorySlug,
 
-    // Imagen
+    // Imagen principal
     @Schema(
             description =
                 "URL principal de la imagen del producto (puede ser null si no hay imagen)",
             example = "https://cdn.lacocinadelicia.com/products/empanadas-carne-main.jpg")
         String mainImageUrl,
+
+    // imagenes
+    @Schema(
+            description = "Lista de URLs de imágenes del producto",
+            example = "[\"https://cdn.lacocinadelicia.com/products/empanadas-carne-1.jpg\", \"https://cdn.lacocinadelicia.com/products/empanadas-carne-2.jpg\"]")
+        List<String> imageUrls,
 
     // Precio "desde"
     @Schema(
@@ -61,6 +68,7 @@ public record ProductSummaryResponse(
     @Schema(description = "Indica si el producto forma parte del menú del día", example = "false")
         boolean dailyMenu,
     @Schema(description = "Indica si el producto es \"nuevo\" en el catálogo", example = "true")
+        @JsonProperty("new")
         boolean isNew,
 
     // Variantes

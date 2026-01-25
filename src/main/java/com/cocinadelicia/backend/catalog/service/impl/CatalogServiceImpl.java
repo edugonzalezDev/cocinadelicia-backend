@@ -12,6 +12,7 @@ import com.cocinadelicia.backend.product.model.ProductVariant;
 import com.cocinadelicia.backend.product.model.Tag;
 import com.cocinadelicia.backend.product.repository.CategoryRepository;
 import com.cocinadelicia.backend.product.repository.ProductRepository;
+import com.cocinadelicia.backend.product.repository.spec.ProductSpecifications;
 import com.cocinadelicia.backend.product.service.PriceService;
 import com.cocinadelicia.backend.product.service.dto.PriceInfo;
 import java.util.Comparator;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,25 +55,61 @@ public class CatalogServiceImpl implements CatalogService {
 
     Pageable pageable = PageRequest.of(filter.page(), filter.size(), sort);
 
-    boolean hasCategory = filter.categorySlug() != null && !filter.categorySlug().isBlank();
+    // Construir especificaciones dinámicamente
+    Specification<Product> spec = buildSpecification(filter);
 
-    Page<Product> page;
-    if (hasCategory) {
-      log.info(
-          "Catalog.getProducts categorySlug={} page={} size={}",
-          filter.categorySlug(),
-          filter.page(),
-          filter.size());
-      page =
-          productRepository.findByIsActiveTrueAndCategory_SlugIgnoreCase(
-              filter.categorySlug(), pageable);
-    } else {
-      log.info("Catalog.getProducts ALL page={} size={}", filter.page(), filter.size());
-      page = productRepository.findByIsActiveTrue(pageable);
-    }
+    log.info(
+        "Catalog.getProducts searchQuery={} categorySlug={} availableOnly={} featured={} dailyMenu={} isNew={} page={} size={}",
+        filter.searchQuery(),
+        filter.categorySlug(),
+        filter.availableOnly(),
+        filter.featured(),
+        filter.dailyMenu(),
+        filter.isNew(),
+        filter.page(),
+        filter.size());
+
+    Page<Product> page = productRepository.findAll(spec, pageable);
 
     Page<ProductSummaryResponse> mapped = page.map(this::toProductSummary);
     return PageResponse.from(mapped);
+  }
+
+  private Specification<Product> buildSpecification(CatalogFilter filter) {
+    // Empezar con productos activos
+    Specification<Product> spec = ProductSpecifications.isActive();
+
+    // Búsqueda de texto
+    if (filter.searchQuery() != null && !filter.searchQuery().isBlank()) {
+      spec = spec.and(ProductSpecifications.searchText(filter.searchQuery()));
+    }
+
+    // Filtro por categoría
+    if (filter.categorySlug() != null && !filter.categorySlug().isBlank()) {
+      spec = spec.and(ProductSpecifications.hasCategory(filter.categorySlug()));
+    }
+
+    // Filtro de disponibilidad
+    if (Boolean.TRUE.equals(filter.availableOnly())) {
+      spec = spec.and(ProductSpecifications.hasAvailableVariant());
+    }
+
+    // Filtro de featured
+    if (Boolean.TRUE.equals(filter.featured())) {
+      spec = spec.and(ProductSpecifications.hasFeaturedVariant());
+    }
+
+    // Filtro de dailyMenu
+    if (Boolean.TRUE.equals(filter.dailyMenu())) {
+      spec = spec.and(ProductSpecifications.hasDailyMenuVariant());
+    }
+
+    // Filtro de isNew
+    if (Boolean.TRUE.equals(filter.isNew())) {
+      spec = spec.and(ProductSpecifications.hasNewVariant());
+    }
+
+    return spec;
   }
 
   // ---------- Mappers ----------
@@ -88,6 +126,37 @@ public class CatalogServiceImpl implements CatalogService {
 
     // ✅ mainImageUrl usando CDN builder (igual que Admin)
     String mainImageUrl = resolveMainImageUrl(product);
+
+    // ✅ imageUrls usando CDN builder (igual que Admin)
+List<String> imageUrls =
+    product.getImages() == null
+        ? List.of()
+        : product.getImages().stream()
+            .peek(
+                img -> {
+                  if (img.getObjectKey() == null || img.getObjectKey().isBlank()) {
+                    log.debug(
+                        "Product.id={} name={} image.id={} missing objectKey",
+                        product.getId(),
+                        product.getName(),
+                        img.getId());
+                  }
+                })
+            .map(
+                img -> {
+                  String url = cdnUrlBuilder.toPublicUrl(img.getObjectKey());
+                  if (url == null || url.isBlank()) {
+                    log.debug(
+                        "Product.id={} name={} image.id={} cdn returned null/blank for key={}",
+                        product.getId(),
+                        product.getName(),
+                        img.getId(),
+                        img.getObjectKey());
+                  }
+                  return url;
+                })
+            .filter(Objects::nonNull)
+            .toList();
 
     // Variantes activas a nivel dominio
     List<ProductVariant> activeDomainVariants =
@@ -137,6 +206,7 @@ public class CatalogServiceImpl implements CatalogService {
         category != null ? category.getName() : null,
         category != null ? category.getSlug() : null,
         mainImageUrl,
+        imageUrls,
         fromPrice,
         available,
         madeToOrder,
