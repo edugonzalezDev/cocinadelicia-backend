@@ -36,7 +36,8 @@ public record ProductSummaryResponse(
     // imagenes
     @Schema(
             description = "Lista de URLs de imágenes del producto",
-            example = "[\"https://cdn.lacocinadelicia.com/products/empanadas-carne-1.jpg\", \"https://cdn.lacocinadelicia.com/products/empanadas-carne-2.jpg\"]")
+            example =
+                "[\"https://cdn.lacocinadelicia.com/products/empanadas-carne-1.jpg\", \"https://cdn.lacocinadelicia.com/products/empanadas-carne-2.jpg\"]")
         List<String> imageUrls,
 
     // Precio "desde"

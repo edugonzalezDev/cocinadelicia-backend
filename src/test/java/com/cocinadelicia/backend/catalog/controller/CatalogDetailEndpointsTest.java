@@ -19,13 +19,13 @@ import org.mockito.Mockito;
 import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.boot.test.context.TestConfiguration;
 
 @WebMvcTest(controllers = CatalogController.class)
 @Import({CatalogDetailEndpointsTest.MockConfig.class})
@@ -91,9 +91,10 @@ class CatalogDetailEndpointsTest {
 
   private ProductDetailResponse sampleDetail() {
     var price = new MoneyResponse(new BigDecimal("590"), "UYU");
-    var variant =
-        new CatalogVariantResponse(100L, "Grande", price, true, 12, "Disponible");
-    var image = new CatalogImageResponse(1L, "https://cdn.test/products/main.jpg", true, 0, "Milanesa clásica");
+    var variant = new CatalogVariantResponse(100L, "Grande", price, true, 12, "Disponible");
+    var image =
+        new CatalogImageResponse(
+            1L, "https://cdn.test/products/main.jpg", true, 0, "Milanesa clásica");
     return new ProductDetailResponse(
         10L,
         "milanesa-clasica",

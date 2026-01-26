@@ -1,8 +1,8 @@
 package com.cocinadelicia.backend.common.exception;
 
 /**
- * Excepción para indicar que el usuario no tiene permisos para acceder a un recurso.
- * Se mapea a HTTP 403 Forbidden.
+ * Excepción para indicar que el usuario no tiene permisos para acceder a un recurso. Se mapea a
+ * HTTP 403 Forbidden.
  */
 public class ForbiddenException extends RuntimeException implements DomainException {
   private final String code;

@@ -41,7 +41,8 @@ public class OrderChefController {
   @GetMapping("/active")
   @Operation(
       summary = "Obtener órdenes activas",
-      description = "Lista solo las órdenes en estados CONFIRMED, PREPARING, READY asignadas al chef")
+      description =
+          "Lista solo las órdenes en estados CONFIRMED, PREPARING, READY asignadas al chef")
   public ResponseEntity<Page<OrderChefResponse>> getActiveOrders(
       @ParameterObject
           @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC)
@@ -52,8 +53,7 @@ public class OrderChefController {
   @PatchMapping("/{id}/status")
   @Operation(
       summary = "Actualizar estado de una orden",
-      description =
-          "Chef solo puede cambiar de CONFIRMED → PREPARING o PREPARING → READY")
+      description = "Chef solo puede cambiar de CONFIRMED → PREPARING o PREPARING → READY")
   public ResponseEntity<OrderChefResponse> updateStatus(
       @PathVariable Long id,
       @Parameter(description = "Nuevo estado", required = true) @RequestParam OrderStatus status) {

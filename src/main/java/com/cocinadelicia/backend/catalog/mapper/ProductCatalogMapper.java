@@ -50,7 +50,8 @@ public class ProductCatalogMapper {
     boolean hasAvailableVariant =
         variants.stream().anyMatch(v -> !"Sin stock".equalsIgnoreCase(v.availabilityLabel()));
     boolean managesStock = variants.stream().anyMatch(CatalogVariantResponse::managesStock);
-    boolean madeToOrder = !variants.isEmpty() ? variants.stream().allMatch(v -> !v.managesStock()) : true;
+    boolean madeToOrder =
+        !variants.isEmpty() ? variants.stream().allMatch(v -> !v.managesStock()) : true;
     boolean available = product.isActive() && (variants.isEmpty() || hasAvailableVariant);
 
     boolean featured = activeVariants.stream().anyMatch(ProductVariant::isFeatured);
@@ -94,7 +95,8 @@ public class ProductCatalogMapper {
     boolean hasAvailableVariant =
         variants.stream().anyMatch(v -> !"Sin stock".equalsIgnoreCase(v.availabilityLabel()));
     boolean managesStock = variants.stream().anyMatch(CatalogVariantResponse::managesStock);
-    boolean madeToOrder = !variants.isEmpty() ? variants.stream().allMatch(v -> !v.managesStock()) : true;
+    boolean madeToOrder =
+        !variants.isEmpty() ? variants.stream().allMatch(v -> !v.managesStock()) : true;
     boolean available = product.isActive() && (variants.isEmpty() || hasAvailableVariant);
 
     boolean featured = activeVariants.stream().anyMatch(ProductVariant::isFeatured);

@@ -35,6 +35,7 @@ public record CatalogFilter(
             example = "true")
         Boolean availableOnly,
     @Schema(
-            description = "Lista de slugs de tags para filtrar (AND). Ej: [\"vegetariano\", \"sin-azucar\"]",
+            description =
+                "Lista de slugs de tags para filtrar (AND). Ej: [\"vegetariano\", \"sin-azucar\"]",
             example = "[\"vegetariano\", \"sin-gluten\"]")
         List<String> tagSlugs) {}

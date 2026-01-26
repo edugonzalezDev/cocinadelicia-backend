@@ -17,12 +17,14 @@ public record ProductDetailResponse(
     @Schema(description = "URL de la imagen principal") String mainImageUrl,
     @Schema(description = "Galería de imágenes") List<CatalogImageResponse> images,
     @Schema(description = "Precio mínimo entre las variantes visibles") MoneyResponse fromPrice,
-    @Schema(description = "Variantes disponibles del producto") List<CatalogVariantResponse> variants,
+    @Schema(description = "Variantes disponibles del producto")
+        List<CatalogVariantResponse> variants,
     @Schema(description = "Slugs de tags asociados") List<String> tags,
     @Schema(description = "Indicador de producto destacado", example = "true") boolean featured,
     @Schema(description = "Indicador de menú del día", example = "false") boolean dailyMenu,
     @Schema(description = "Indicador de producto nuevo", example = "false") boolean isNew,
-    @Schema(description = "Indicador de disponibilidad general", example = "true") boolean available,
+    @Schema(description = "Indicador de disponibilidad general", example = "true")
+        boolean available,
     @Schema(description = "Indica si alguna variante maneja stock", example = "true")
         boolean managesStock,
     @Schema(description = "Indica si el producto es principalmente a pedido", example = "true")

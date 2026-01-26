@@ -4,13 +4,12 @@ import com.cocinadelicia.backend.common.exception.ForbiddenException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.order.model.CustomerOrder;
 import com.cocinadelicia.backend.order.repository.CustomerOrderRepository;
-import com.cocinadelicia.backend.user.model.AppUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * Validador de ownership de órdenes.
- * CRÍTICO: Previene que usuarios accedan a órdenes de otros usuarios.
+ * Validador de ownership de órdenes. CRÍTICO: Previene que usuarios accedan a órdenes de otros
+ * usuarios.
  */
 @Component
 @RequiredArgsConstructor
