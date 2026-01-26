@@ -6,5 +6,4 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "Request para cancelar una orden")
 public record OrderCancelRequest(
     @Schema(description = "Razón de la cancelación (opcional)", example = "Cambié de opinión")
-        @Size(max = 500, message = "Cancellation reason must not exceed 500 characters")
-        String reason) {}
+        @Size(max = 500, message = "Cancellation reason must not exceed 500 characters") String reason) {}

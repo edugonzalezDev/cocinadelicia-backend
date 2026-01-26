@@ -78,8 +78,7 @@ public class OrderChefServiceImpl implements OrderChefService {
             .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
 
     // Validar que la orden esté asignada al chef actual
-    if (order.getAssignedChefEmail() == null
-        || !order.getAssignedChefEmail().equals(chefEmail)) {
+    if (order.getAssignedChefEmail() == null || !order.getAssignedChefEmail().equals(chefEmail)) {
       throw new ForbiddenException("This order is not assigned to you");
     }
 

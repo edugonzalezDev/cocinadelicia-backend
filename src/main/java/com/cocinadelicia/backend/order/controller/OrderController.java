@@ -115,20 +115,20 @@ public class OrderController {
 
   @Operation(
       summary = "Obtener pedido activo actual",
-      description = "Devuelve el pedido activo (no DELIVERED ni CANCELLED) más reciente del usuario",
+      description =
+          "Devuelve el pedido activo (no DELIVERED ni CANCELLED) más reciente del usuario",
       responses = {
         @ApiResponse(
             responseCode = "200",
             description = "Pedido activo encontrado",
             content = @Content(schema = @Schema(implementation = OrderResponse.class))),
-        @ApiResponse(
-            responseCode = "204",
-            description = "No hay pedidos activos")
+        @ApiResponse(responseCode = "204", description = "No hay pedidos activos")
       })
   @GetMapping("/current")
   public ResponseEntity<OrderResponse> getCurrentOrder(@AuthenticationPrincipal Jwt jwt) {
     Long appUserId = currentUserService.getOrCreateCurrentUserId();
-    return orderService.getCurrentOrder(appUserId)
+    return orderService
+        .getCurrentOrder(appUserId)
         .map(ResponseEntity::ok)
         .orElse(ResponseEntity.noContent().build());
   }

@@ -39,8 +39,8 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
       @Param("variantId") Long variantId, @Param("now") Instant now);
 
   /**
-   * Query batch optimizada para obtener precios actuales de múltiples variantes.
-   * Reduce N+1 queries a una sola consulta.
+   * Query batch optimizada para obtener precios actuales de múltiples variantes. Reduce N+1 queries
+   * a una sola consulta.
    */
   @Query(
 """
@@ -54,9 +54,7 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
   List<PriceHistory> findCurrentPricesForVariants(
       @Param("variantIds") Set<Long> variantIds, @Param("now") Instant now);
 
-  /**
-   * Sobrecarga con timestamp actual por defecto.
-   */
+  /** Sobrecarga con timestamp actual por defecto. */
   default List<PriceHistory> findCurrentPricesForVariants(Set<Long> variantIds) {
     return findCurrentPricesForVariants(variantIds, Instant.now());
   }

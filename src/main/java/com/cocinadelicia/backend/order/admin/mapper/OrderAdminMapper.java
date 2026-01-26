@@ -2,7 +2,6 @@ package com.cocinadelicia.backend.order.admin.mapper;
 
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
 import com.cocinadelicia.backend.order.dto.OrderItemResponse;
-import com.cocinadelicia.backend.order.mapper.OrderMapper;
 import com.cocinadelicia.backend.order.model.CustomerOrder;
 import com.cocinadelicia.backend.order.model.OrderStatusHistory;
 import java.util.List;
@@ -64,8 +63,7 @@ public final class OrderAdminMapper {
         item.getLineTotal());
   }
 
-  private static OrderAdminResponse.StatusHistoryEntry toHistoryEntry(
-      OrderStatusHistory history) {
+  private static OrderAdminResponse.StatusHistoryEntry toHistoryEntry(OrderStatusHistory history) {
     return new OrderAdminResponse.StatusHistoryEntry(
         history.getFromStatus(),
         history.getToStatus(),

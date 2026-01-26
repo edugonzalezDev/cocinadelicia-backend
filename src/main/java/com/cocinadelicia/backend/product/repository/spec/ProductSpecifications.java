@@ -104,20 +104,21 @@ public class ProductSpecifications {
   }
 
   /**
-   * Filtra productos que tengan TODOS los tags especificados (slug).
-   * Si la lista está vacía, devuelve null (sin filtro).
+   * Filtra productos que tengan TODOS los tags especificados (slug). Si la lista está vacía,
+   * devuelve null (sin filtro).
    */
   public static Specification<Product> hasTags(java.util.List<String> tagSlugs) {
     if (tagSlugs == null || tagSlugs.isEmpty()) return null;
 
     return (root, query, cb) -> {
       // Normalizar slugs a lowercase
-      java.util.List<String> normalizedSlugs = tagSlugs.stream()
-          .filter(s -> s != null && !s.isBlank())
-          .map(String::trim)
-          .map(String::toLowerCase)
-          .distinct()
-          .toList();
+      java.util.List<String> normalizedSlugs =
+          tagSlugs.stream()
+              .filter(s -> s != null && !s.isBlank())
+              .map(String::trim)
+              .map(String::toLowerCase)
+              .distinct()
+              .toList();
 
       if (normalizedSlugs.isEmpty()) return null;
 
@@ -127,7 +128,8 @@ public class ProductSpecifications {
       for (int i = 0; i < normalizedSlugs.size(); i++) {
         String tagSlug = normalizedSlugs.get(i);
 
-        // Subquery: EXISTS (SELECT 1 FROM product_tag pt JOIN tag t WHERE pt.product_id = product.id AND t.slug = ?)
+        // Subquery: EXISTS (SELECT 1 FROM product_tag pt JOIN tag t WHERE pt.product_id =
+        // product.id AND t.slug = ?)
         Subquery<Long> subquery = query.subquery(Long.class);
         Root<Product> subProduct = subquery.from(Product.class);
         Join<Product, Tag> subTagJoin = subProduct.join("tags", JoinType.INNER);
@@ -136,9 +138,7 @@ public class ProductSpecifications {
         subquery.where(
             cb.and(
                 cb.equal(subProduct.get("id"), root.get("id")),
-                cb.equal(cb.lower(subTagJoin.get("slug")), tagSlug)
-            )
-        );
+                cb.equal(cb.lower(subTagJoin.get("slug")), tagSlug)));
 
         tagPredicates[i] = cb.exists(subquery);
       }

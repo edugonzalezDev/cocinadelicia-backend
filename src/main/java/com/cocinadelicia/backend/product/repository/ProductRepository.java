@@ -27,8 +27,8 @@ public interface ProductRepository
   boolean existsByCategory_Id(Long categoryId);
 
   /**
-   * Query optimizada con fetch joins para evitar N+1 queries en catálogo.
-   * Carga productos con sus variantes y precios actuales en una sola consulta.
+   * Query optimizada con fetch joins para evitar N+1 queries en catálogo. Carga productos con sus
+   * variantes y precios actuales en una sola consulta.
    */
   @Query(
       """
@@ -41,9 +41,7 @@ public interface ProductRepository
       """)
   List<Product> findAllActiveWithVariantsAndCategory();
 
-  /**
-   * Obtiene IDs de productos activos para paginación manual optimizada.
-   */
+  /** Obtiene IDs de productos activos para paginación manual optimizada. */
   @Query(
       """
       SELECT p.id FROM Product p
@@ -53,9 +51,7 @@ public interface ProductRepository
       """)
   List<Long> findAllActiveProductIds(Pageable pageable);
 
-  /**
-   * Carga productos por IDs con fetch joins (segunda query de paginación optimizada).
-   */
+  /** Carga productos por IDs con fetch joins (segunda query de paginación optimizada). */
   @Query(
       """
       SELECT DISTINCT p FROM Product p

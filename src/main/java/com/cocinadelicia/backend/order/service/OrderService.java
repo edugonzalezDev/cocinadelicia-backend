@@ -21,13 +21,9 @@ public interface OrderService {
 
   Page<OrderResponse> findOrders(OrderFilter filter, Pageable pageable);
 
-  /**
-   * Obtiene la orden activa del usuario (no DELIVERED ni CANCELLED).
-   */
+  /** Obtiene la orden activa del usuario (no DELIVERED ni CANCELLED). */
   Optional<OrderResponse> getCurrentOrder(Long appUserId);
 
-  /**
-   * Cancela una orden del cliente (solo si el estado lo permite).
-   */
+  /** Cancela una orden del cliente (solo si el estado lo permite). */
   OrderResponse cancelOrder(Long orderId, String reason, Long appUserId);
 }

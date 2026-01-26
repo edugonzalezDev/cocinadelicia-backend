@@ -298,8 +298,7 @@ public class OrderAdminServiceImpl implements OrderAdminService {
     CustomerOrder saved = orderRepository.save(order);
 
     String adminEmail = currentUserService.getCurrentUserEmail();
-    log.info(
-        "ChefAssigned orderId={} chefEmail={} by={}", orderId, chefEmail, adminEmail);
+    log.info("ChefAssigned orderId={} chefEmail={} by={}", orderId, chefEmail, adminEmail);
 
     List<OrderStatusHistory> history =
         statusHistoryRepository.findByOrderIdOrderByChangedAtDesc(orderId);
@@ -328,8 +327,7 @@ public class OrderAdminServiceImpl implements OrderAdminService {
     Instant endOfDay = today.plusDays(1).atStartOfDay(ZoneId.of("America/Montevideo")).toInstant();
 
     // Conteo por estado (solo no eliminadas)
-    Specification<CustomerOrder> notDeleted =
-        (root, query, cb) -> cb.isNull(root.get("deletedAt"));
+    Specification<CustomerOrder> notDeleted = (root, query, cb) -> cb.isNull(root.get("deletedAt"));
 
     long totalActive = orderRepository.count(notDeleted);
 
@@ -423,10 +421,7 @@ public class OrderAdminServiceImpl implements OrderAdminService {
 
     if (filters.getCreatedAfter() != null) {
       Instant start =
-          filters
-              .getCreatedAfter()
-              .atStartOfDay(ZoneId.of("America/Montevideo"))
-              .toInstant();
+          filters.getCreatedAfter().atStartOfDay(ZoneId.of("America/Montevideo")).toInstant();
       specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), start));
     }
 
@@ -448,7 +443,8 @@ public class OrderAdminServiceImpl implements OrderAdminService {
 
     if (filters.getMaxAmount() != null) {
       specs.add(
-          (root, query, cb) -> cb.lessThanOrEqualTo(root.get("totalAmount"), filters.getMaxAmount()));
+          (root, query, cb) ->
+              cb.lessThanOrEqualTo(root.get("totalAmount"), filters.getMaxAmount()));
     }
 
     // Por defecto NO mostrar eliminadas

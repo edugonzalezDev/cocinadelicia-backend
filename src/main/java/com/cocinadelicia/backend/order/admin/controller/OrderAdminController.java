@@ -50,7 +50,8 @@ public class OrderAdminController {
   @GetMapping
   @Operation(
       summary = "Listar todas las órdenes con filtros avanzados",
-      description = "Obtiene lista paginada de órdenes con filtros por estado, fecha, usuario, chef, monto, etc.")
+      description =
+          "Obtiene lista paginada de órdenes con filtros por estado, fecha, usuario, chef, monto, etc.")
   public ResponseEntity<Page<OrderAdminResponse>> getAllOrders(
       @ParameterObject @Valid OrderFilterRequest filters,
       @ParameterObject
@@ -62,7 +63,8 @@ public class OrderAdminController {
   @GetMapping("/{id}")
   @Operation(
       summary = "Obtener detalle completo de una orden",
-      description = "Incluye historial de cambios de estado, datos del usuario, chef asignado, etc.")
+      description =
+          "Incluye historial de cambios de estado, datos del usuario, chef asignado, etc.")
   public ResponseEntity<OrderAdminResponse> getOrderById(@PathVariable Long id) {
     return ResponseEntity.ok(orderAdminService.getOrderById(id));
   }
@@ -70,7 +72,8 @@ public class OrderAdminController {
   @PatchMapping("/{id}/status")
   @Operation(
       summary = "Actualizar estado de una orden",
-      description = "Permite cambiar el estado de una orden. Admin puede hacer cualquier transición válida.")
+      description =
+          "Permite cambiar el estado de una orden. Admin puede hacer cualquier transición válida.")
   public ResponseEntity<OrderAdminResponse> updateStatus(
       @PathVariable Long id,
       @Parameter(description = "Nuevo estado", required = true) @RequestParam OrderStatus status,
@@ -101,7 +104,8 @@ public class OrderAdminController {
   @GetMapping("/stats")
   @Operation(
       summary = "Obtener estadísticas de órdenes",
-      description = "KPIs para dashboard: órdenes por estado, ingresos del día, ticket promedio, etc.")
+      description =
+          "KPIs para dashboard: órdenes por estado, ingresos del día, ticket promedio, etc.")
   public ResponseEntity<OrderStatsResponse> getStats() {
     return ResponseEntity.ok(orderAdminService.getStats());
   }
