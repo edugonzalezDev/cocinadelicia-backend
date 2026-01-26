@@ -1218,49 +1218,49 @@ VALUES
 -- ===============================
 -- 10) Patch: requested_at / delivered_at (V7 consolidado)
 -- ===============================
-UPDATE customer_order SET requested_at = '2025-01-01 20:30:00' WHERE id = 1;
-UPDATE customer_order SET requested_at = '2025-01-01 19:00:00' WHERE id = 2;
+UPDATE customer_order SET requested_at = '2026-01-26 22:30:00' WHERE id = 1;
+UPDATE customer_order SET requested_at = '2026-01-26 22:00:00' WHERE id = 2;
 
-UPDATE customer_order SET requested_at = '2025-01-01 20:15:00' WHERE id = 3;
-UPDATE customer_order SET requested_at = '2025-01-01 19:30:00' WHERE id = 4;
-UPDATE customer_order SET requested_at = '2025-01-01 20:00:00' WHERE id = 5;
-UPDATE customer_order SET requested_at = '2025-01-01 20:00:00' WHERE id = 6;
-UPDATE customer_order SET requested_at = '2025-01-01 20:10:00' WHERE id = 7;
+UPDATE customer_order SET requested_at = '2026-01-26 22:15:00' WHERE id = 3;
+UPDATE customer_order SET requested_at = '2026-01-26 16:30:00' WHERE id = 4;
+UPDATE customer_order SET requested_at = '2026-01-26 22:00:00' WHERE id = 5;
+UPDATE customer_order SET requested_at = '2026-01-26 22:00:00' WHERE id = 6;
+UPDATE customer_order SET requested_at = '2026-01-26 22:10:00' WHERE id = 7;
 
 UPDATE customer_order
-SET requested_at = '2025-01-01 19:45:00',
-    delivered_at = '2025-01-01 19:50:00'
+SET requested_at = '2026-01-01 19:45:00',
+    delivered_at = '2026-01-01 19:50:00'
 WHERE id = 8;
 
-UPDATE customer_order SET requested_at = '2025-01-01 20:00:00' WHERE id = 9;
-UPDATE customer_order SET requested_at = '2025-01-01 21:00:00' WHERE id = 10;
-UPDATE customer_order SET requested_at = '2025-01-01 20:30:00' WHERE id = 11;
-UPDATE customer_order SET requested_at = '2025-01-01 19:45:00' WHERE id = 12;
+UPDATE customer_order SET requested_at = '2026-01-26 22:00:00' WHERE id = 9;
+UPDATE customer_order SET requested_at = '2026-01-26 21:00:00' WHERE id = 10;
+UPDATE customer_order SET requested_at = '2026-01-26 23:30:00' WHERE id = 11;
+UPDATE customer_order SET requested_at = '2026-01-26 13:45:00' WHERE id = 12;
 
 UPDATE customer_order
-SET requested_at = '2025-01-01 20:00:00',
-    delivered_at = '2025-01-01 20:20:00'
+SET requested_at = '2026-01-26 20:00:00',
+    delivered_at = '2026-01-26 20:20:00'
 WHERE id = 13;
 
-UPDATE customer_order SET requested_at = '2025-01-01 20:00:00' WHERE id = 14;
-UPDATE customer_order SET requested_at = '2025-01-01 20:10:00' WHERE id = 15;
+UPDATE customer_order SET requested_at = '2026-01-26 22:00:00' WHERE id = 14;
+UPDATE customer_order SET requested_at = '2026-01-26 22:10:00' WHERE id = 15;
 
 UPDATE customer_order
-SET requested_at = '2025-01-01 19:00:00',
-    delivered_at = '2025-01-01 19:15:00'
+SET requested_at = '2026-01-26 19:00:00',
+    delivered_at = '2026-01-26 19:15:00'
 WHERE id = 16;
 
-UPDATE customer_order SET requested_at = '2025-01-01 20:05:00' WHERE id = 17;
-UPDATE customer_order SET requested_at = '2025-01-01 21:00:00' WHERE id = 18;
-UPDATE customer_order SET requested_at = '2025-01-01 20:20:00' WHERE id = 19;
-UPDATE customer_order SET requested_at = '2025-01-01 20:15:00' WHERE id = 20;
+UPDATE customer_order SET requested_at = '2026-01-26 22:05:00' WHERE id = 17;
+UPDATE customer_order SET requested_at = '2026-01-26 23:00:00' WHERE id = 18;
+UPDATE customer_order SET requested_at = '2026-01-26 23:20:00' WHERE id = 19;
+UPDATE customer_order SET requested_at = '2026-01-26 22:15:00' WHERE id = 20;
 
 UPDATE customer_order
-SET requested_at = '2025-01-01 20:30:00',
-    delivered_at = '2025-01-01 20:45:00'
+SET requested_at = '2026-01-26 23:30:00',
+    delivered_at = '2026-01-26 22:45:00'
 WHERE id = 21;
 
-UPDATE customer_order SET requested_at = '2025-01-01 21:00:00' WHERE id = 22;
+UPDATE customer_order SET requested_at = '2026-01-26 23:00:00' WHERE id = 22;
 
 -- ===============================
 -- 11) Patch: stock + flags marketing (V10 consolidado)

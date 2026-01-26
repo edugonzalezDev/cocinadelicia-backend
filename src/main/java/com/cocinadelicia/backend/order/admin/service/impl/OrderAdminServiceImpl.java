@@ -360,6 +360,14 @@ public class OrderAdminServiceImpl implements OrderAdminService {
                 cb.between(root.get("deliveredAt"), startOfDay, endOfDay));
     long deliveredTodayCount = orderRepository.count(deliveredToday);
 
+    // Ingresos de pedidos solicitados hoy (excluye CANCELLED)
+    Specification<CustomerOrder> requestedTodayActive =
+      notDeleted.and(
+        (root, query, cb) ->
+          cb.and(
+            cb.between(root.get("requestedAt"), startOfDay, endOfDay)));
+    long requestedTodayActiveCount = orderRepository.count(requestedTodayActive);
+
     // Canceladas hoy
     Specification<CustomerOrder> CANCELLEDToday =
         (root, query, cb) ->
@@ -368,19 +376,26 @@ public class OrderAdminServiceImpl implements OrderAdminService {
                 cb.between(root.get("updatedAt"), startOfDay, endOfDay));
     long CANCELLEDTodayCount = orderRepository.count(CANCELLEDToday);
 
+    List<CustomerOrder> requestedTodayOrders = orderRepository.findAll(requestedTodayActive);
+    BigDecimal revenueTotalToday =
+      requestedTodayOrders.stream()
+        .map(CustomerOrder::getTotalAmount)
+        .reduce(ZERO, BigDecimal::add);
+
+
     // Ingresos del día (suma de totalAmount de órdenes entregadas hoy)
     List<CustomerOrder> deliveredOrders = orderRepository.findAll(deliveredToday);
-    BigDecimal revenueToday =
+    BigDecimal revenueDeliveredToday =
         deliveredOrders.stream()
             .map(CustomerOrder::getTotalAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     // Ticket promedio
     BigDecimal avgTicket = BigDecimal.ZERO;
-    if (deliveredTodayCount > 0) {
+    if (requestedTodayActiveCount > 0) {
       avgTicket =
-          revenueToday.divide(
-              BigDecimal.valueOf(deliveredTodayCount), 2, java.math.RoundingMode.HALF_UP);
+        revenueTotalToday.divide(
+              BigDecimal.valueOf(requestedTodayActiveCount), 2, java.math.RoundingMode.HALF_UP);
     }
 
     return new OrderStatsResponse(
@@ -392,8 +407,9 @@ public class OrderAdminServiceImpl implements OrderAdminService {
         outForDeliveryCount,
         deliveredTodayCount,
         CANCELLEDTodayCount,
-        revenueToday,
-        avgTicket);
+        revenueDeliveredToday,
+        avgTicket,
+        revenueTotalToday);
   }
 
   private Specification<CustomerOrder> buildSpecification(OrderFilterRequest filters) {
