@@ -22,7 +22,7 @@ public interface OrderService {
   Page<OrderResponse> findOrders(OrderFilter filter, Pageable pageable);
 
   /**
-   * Obtiene la orden activa del usuario (no DELIVERED ni CANCELED).
+   * Obtiene la orden activa del usuario (no DELIVERED ni CANCELLED).
    */
   Optional<OrderResponse> getCurrentOrder(Long appUserId);
 

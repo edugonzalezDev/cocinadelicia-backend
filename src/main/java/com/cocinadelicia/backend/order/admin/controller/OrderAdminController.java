@@ -92,7 +92,7 @@ public class OrderAdminController {
   @DeleteMapping("/{id}")
   @Operation(
       summary = "Eliminar orden (soft delete)",
-      description = "Marca la orden como eliminada y cambia su estado a CANCELED")
+      description = "Marca la orden como eliminada y cambia su estado a CANCELLED")
   public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
     orderAdminService.deleteOrder(id);
     return ResponseEntity.noContent().build();

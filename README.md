@@ -202,17 +202,17 @@ un `status` basado en el enum `OrderStatus`:
 - `READY` → el pedido está listo para retirar o salir a reparto.
 - `OUT_FOR_DELIVERY` → el pedido está en camino (delivery).
 - `DELIVERED` → el pedido fue entregado al cliente.
-- `CANCELED` → el pedido fue cancelado (por cliente o staff).
+- `CANCELLED` → el pedido fue cancelado (por cliente o staff).
 
 Transiciones válidas (conceptual, alineado a `OrderStatusTransitionValidator` y al frontend `AdminOrdersPage`):
 
-- `CREATED` → `PREPARING` | `CANCELED`
-- `CONFIRMED` → `PREPARING` | `CANCELED`
-- `PREPARING` → `READY` | `CANCELED`
+- `CREATED` → `PREPARING` | `CANCELLED`
+- `CONFIRMED` → `PREPARING` | `CANCELLED`
+- `PREPARING` → `READY` | `CANCELLED`
 - `READY` → `DELIVERED`
 - `OUT_FOR_DELIVERY` → `DELIVERED`
 - `DELIVERED` → *(estado final, sin transiciones posteriores)*
-- `CANCELED` → *(estado final, sin transiciones posteriores)*
+- `CANCELLED` → *(estado final, sin transiciones posteriores)*
 
 Estas reglas se validan en backend. Las transiciones inválidas producen un **error 400** con código
 de negocio (ej.: `INVALID_STATUS_TRANSITION`) y se registran en logs (`WARN`).

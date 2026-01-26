@@ -21,7 +21,7 @@ public record OrderResponse(
               "READY",
               "OUT_FOR_DELIVERY",
               "DELIVERED",
-              "CANCELED"
+              "CANCELLED"
             })
         OrderStatus status,
     @Schema(

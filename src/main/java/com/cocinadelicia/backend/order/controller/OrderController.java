@@ -115,7 +115,7 @@ public class OrderController {
 
   @Operation(
       summary = "Obtener pedido activo actual",
-      description = "Devuelve el pedido activo (no DELIVERED ni CANCELED) más reciente del usuario",
+      description = "Devuelve el pedido activo (no DELIVERED ni CANCELLED) más reciente del usuario",
       responses = {
         @ApiResponse(
             responseCode = "200",
@@ -306,7 +306,7 @@ public class OrderController {
       - READY
       - OUT_FOR_DELIVERY
       - DELIVERED
-      - CANCELED
+      - CANCELLED
 
       Las transiciones válidas se validan en el backend.
       Ejemplos típicos:

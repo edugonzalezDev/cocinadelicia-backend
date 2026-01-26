@@ -12,6 +12,6 @@ public record OrderStatsResponse(
     @Schema(description = "Órdenes en estado READY") long ordersReady,
     @Schema(description = "Órdenes en estado OUT_FOR_DELIVERY") long ordersOutForDelivery,
     @Schema(description = "Órdenes entregadas hoy") long ordersDeliveredToday,
-    @Schema(description = "Órdenes canceladas hoy") long ordersCanceledToday,
+    @Schema(description = "Órdenes canceladas hoy") long ordersCANCELLEDToday,
     @Schema(description = "Ingresos totales del día") BigDecimal totalRevenueToday,
     @Schema(description = "Ticket promedio del día") BigDecimal averageTicketToday) {}

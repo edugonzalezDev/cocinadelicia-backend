@@ -1088,7 +1088,7 @@ INSERT INTO customer_order (
   (8, 4, 'DELIVERED', 'PICKUP', 'UYU', 990.00, 99.00, 0.00, 1089.00,
    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, 'Pedido retirado en mostrador'),
 
-  (9, 5, 'CANCELED', 'DELIVERY', 'UYU', 880.00, 88.00, 0.00, 968.00,
+  (9, 5, 'CANCELLED', 'DELIVERY', 'UYU', 880.00, 88.00, 0.00, 968.00,
    'Carlos Silva', '+59800000004', 'Rbla. Rep. del Perú 1234', 'Edificio Costa Brava',
    'Montevideo','Montevideo','11300','Portería 24h',
    'Cancelado por el cliente'),
@@ -1118,7 +1118,7 @@ INSERT INTO customer_order (
   (16, 4, 'DELIVERED', 'PICKUP', 'UYU', 1180.00, 118.00, 0.00, 1298.00,
    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, 'Retirado y abonado en efectivo'),
 
-  (17, 5, 'CANCELED', 'DELIVERY', 'UYU', 870.00, 87.00, 0.00, 957.00,
+  (17, 5, 'CANCELLED', 'DELIVERY', 'UYU', 870.00, 87.00, 0.00, 957.00,
    'Carlos Silva', '+59800000004', 'Rbla. Rep. del Perú 1234', 'Edificio Costa Brava',
    'Montevideo','Montevideo','11300','Portería 24h',
    'Cancelado por demora'),
