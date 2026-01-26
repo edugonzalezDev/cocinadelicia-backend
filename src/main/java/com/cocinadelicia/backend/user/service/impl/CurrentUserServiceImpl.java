@@ -26,4 +26,17 @@ public class CurrentUserServiceImpl implements CurrentUserService {
     var dto = userService.registerOrUpdateFromToken((UserRegistrationDTO) null, jwtAuth);
     return dto.getId();
   }
+
+  @Override
+  public String getCurrentUserEmail() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    if (!(auth instanceof JwtAuthenticationToken jwtAuth)) {
+      throw new IllegalStateException("No JWT authentication present.");
+    }
+    String email = jwtAuth.getToken().getClaimAsString("email");
+    if (email == null || email.isBlank()) {
+      email = jwtAuth.getToken().getSubject();
+    }
+    return email;
+  }
 }

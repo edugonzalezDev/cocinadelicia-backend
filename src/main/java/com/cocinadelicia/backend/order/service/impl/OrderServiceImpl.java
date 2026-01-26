@@ -14,9 +14,11 @@ import com.cocinadelicia.backend.order.events.OrderWebSocketPublisher;
 import com.cocinadelicia.backend.order.mapper.OrderMapper;
 import com.cocinadelicia.backend.order.model.CustomerOrder;
 import com.cocinadelicia.backend.order.model.OrderItem;
+import com.cocinadelicia.backend.order.model.OrderStatusHistory;
 import com.cocinadelicia.backend.order.port.PriceQueryPort;
 import com.cocinadelicia.backend.order.repository.CustomerOrderRepository;
 import com.cocinadelicia.backend.order.repository.OrderItemRepository;
+import com.cocinadelicia.backend.order.repository.OrderStatusHistoryRepository;
 import com.cocinadelicia.backend.order.repository.spec.OrderSpecifications;
 import com.cocinadelicia.backend.order.service.OrderService;
 import com.cocinadelicia.backend.product.model.Product;
@@ -28,6 +30,8 @@ import com.cocinadelicia.backend.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
@@ -47,6 +51,7 @@ public class OrderServiceImpl implements OrderService {
 
   private final CustomerOrderRepository customerOrderRepository;
   private final OrderItemRepository orderItemRepository; // no se usa explícitamente
+  private final OrderStatusHistoryRepository statusHistoryRepository;
   private final PriceQueryPort priceQueryPort;
 
   private final OrderWebSocketPublisher orderWebSocketPublisher;
@@ -312,6 +317,88 @@ public class OrderServiceImpl implements OrderService {
     }
 
     return customerOrderRepository.findAll(spec, effective).map(OrderMapper::toResponse);
+  }
+
+  @Override
+  public Optional<OrderResponse> getCurrentOrder(Long appUserId) {
+    // Buscar órdenes activas (no DELIVERED ni CANCELLED)
+    List<OrderStatus> activeStatuses =
+        List.of(
+            OrderStatus.CREATED,
+            OrderStatus.CONFIRMED,
+            OrderStatus.PREPARING,
+            OrderStatus.READY,
+            OrderStatus.OUT_FOR_DELIVERY);
+
+    Specification<CustomerOrder> spec =
+        OrderSpecifications.userIdEq(appUserId)
+            .and(OrderSpecifications.statusIn(activeStatuses))
+            .and((root, query, cb) -> cb.isNull(root.get("deletedAt")));
+
+    org.springframework.data.domain.Pageable pageable =
+        org.springframework.data.domain.PageRequest.of(
+            0, 1, org.springframework.data.domain.Sort.by("createdAt").descending());
+
+    Page<CustomerOrder> page = customerOrderRepository.findAll(spec, pageable);
+
+    return page.hasContent()
+        ? Optional.of(OrderMapper.toResponse(page.getContent().get(0)))
+        : Optional.empty();
+  }
+
+  @Override
+  public OrderResponse cancelOrder(Long orderId, String reason, Long appUserId) {
+    CustomerOrder order =
+        customerOrderRepository
+            .findByIdAndUser_Id(orderId, appUserId)
+            .orElseThrow(
+                () ->
+                    new NotFoundException(
+                        "ORDER_NOT_FOUND", "Pedido no encontrado o no pertenece al usuario."));
+
+    if (order.isDeleted()) {
+      throw new NotFoundException("ORDER_NOT_FOUND", "Pedido no encontrado.");
+    }
+
+    OrderStatus current = order.getStatus();
+
+    // Validar que el cliente puede cancelar
+    if (!com.cocinadelicia.backend.order.domain.OrderStatusTransition.canClientCancel(current)) {
+      throw new BadRequestException(
+          "CANNOT_CANCEL_ORDER",
+          String.format(
+              "No se puede cancelar un pedido en estado %s. Solo se pueden cancelar pedidos CREATED o CONFIRMED.",
+              current));
+    }
+
+    // Cambiar estado a CANCELLED
+    order.setStatus(OrderStatus.CANCELLED);
+    CustomerOrder saved = customerOrderRepository.save(order);
+
+    // Registrar en historial
+    OrderStatusHistory historyEntry =
+        OrderStatusHistory.builder()
+            .orderId(orderId)
+            .fromStatus(current)
+            .toStatus(OrderStatus.CANCELLED)
+            .changedBy(order.getUser().getEmail())
+            .changedAt(java.time.Instant.now())
+            .reason(reason != null ? reason : "Cliente canceló el pedido")
+            .build();
+    statusHistoryRepository.save(historyEntry);
+
+    OrderResponse response = OrderMapper.toResponse(saved);
+
+    log.info(
+        "OrderCANCELLED orderId={} userId={} previousStatus={} reason={}",
+        orderId,
+        appUserId,
+        current,
+        reason);
+
+    orderWebSocketPublisher.publishOrderUpdated(response);
+
+    return response;
   }
 
   // === Helpers ===

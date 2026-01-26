@@ -3,6 +3,7 @@ package com.cocinadelicia.backend.catalog.controller;
 
 import com.cocinadelicia.backend.catalog.dto.CatalogFilter;
 import com.cocinadelicia.backend.catalog.dto.CategorySummaryResponse;
+import com.cocinadelicia.backend.catalog.dto.ProductDetailResponse;
 import com.cocinadelicia.backend.catalog.dto.ProductSummaryResponse;
 import com.cocinadelicia.backend.catalog.service.CatalogService;
 import com.cocinadelicia.backend.common.web.PageResponse;
@@ -123,5 +124,30 @@ public class CatalogController {
             tagSlugs);
 
     return ResponseEntity.ok(catalogService.getProducts(filter));
+  }
+
+  @Operation(
+      summary = "Detalle de producto por slug",
+      description =
+          """
+       Devuelve el detalle completo de un producto activo identificado por su slug.
+       Endpoint público: no requiere autenticación.
+       """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Detalle de producto",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ProductDetailResponse.class))),
+        @ApiResponse(responseCode = "404", description = "Producto no encontrado")
+      })
+  @GetMapping("/products/{slug}")
+  public ResponseEntity<ProductDetailResponse> getProductBySlug(
+      @Parameter(description = "Slug del producto", example = "milanesa-clasica")
+          @PathVariable("slug")
+          String slug) {
+    return ResponseEntity.ok(catalogService.getProductBySlug(slug));
   }
 }

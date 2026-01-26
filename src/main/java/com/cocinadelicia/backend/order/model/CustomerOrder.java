@@ -98,6 +98,12 @@ public class CustomerOrder extends BaseAudit {
   @Column(name = "delivered_at")
   private Instant deliveredAt;
 
+  @Column(name = "deleted_by")
+  private String deletedBy;
+
+  @Column(name = "assigned_chef_email")
+  private String assignedChefEmail;
+
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
   @Builder.Default
   private List<OrderItem> items = new ArrayList<>();
@@ -115,5 +121,15 @@ public class CustomerOrder extends BaseAudit {
   public void addPayment(Payment p) {
     payments.add(p);
     p.setOrder(this);
+  }
+
+  public boolean isDeleted() {
+    return getDeletedAt() != null;
+  }
+
+  public void softDelete(String deletedBy) {
+    setDeletedAt(Instant.now());
+    this.deletedBy = deletedBy;
+    this.status = OrderStatus.CANCELLED;
   }
 }
