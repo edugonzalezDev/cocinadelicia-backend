@@ -5,6 +5,9 @@ import com.cocinadelicia.backend.order.admin.dto.CreateOrderAdminRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderFilterRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderStatsResponse;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderCustomerRequest;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderDetailsRequest;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderItemsRequest;
 import com.cocinadelicia.backend.order.admin.service.OrderAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -108,5 +111,32 @@ public class OrderAdminController {
           "KPIs para dashboard: órdenes por estado, ingresos del día, ticket promedio, etc.")
   public ResponseEntity<OrderStatsResponse> getStats() {
     return ResponseEntity.ok(orderAdminService.getStats());
+  }
+
+  @PatchMapping("/{id}/items")
+  @Operation(
+      summary = "Reemplazar ítems de la orden",
+      description =
+          "Permite al admin modificar los ítems y recalcular totales mientras la orden esté editable")
+  public ResponseEntity<OrderAdminResponse> updateItems(
+      @PathVariable Long id, @Valid @RequestBody UpdateOrderItemsRequest request) {
+    return ResponseEntity.ok(orderAdminService.updateItems(id, request));
+  }
+
+  @PatchMapping("/{id}/details")
+  @Operation(
+      summary = "Actualizar detalles del pedido",
+      description =
+          "Permite cambiar notas, fulfillment, envío y fecha solicitada mientras esté editable")
+  public ResponseEntity<OrderAdminResponse> updateDetails(
+      @PathVariable Long id, @Valid @RequestBody UpdateOrderDetailsRequest request) {
+    return ResponseEntity.ok(orderAdminService.updateDetails(id, request));
+  }
+
+  @PatchMapping("/{id}/customer")
+  @Operation(summary = "Cambiar el cliente de la orden")
+  public ResponseEntity<OrderAdminResponse> updateCustomer(
+      @PathVariable Long id, @Valid @RequestBody UpdateOrderCustomerRequest request) {
+    return ResponseEntity.ok(orderAdminService.updateCustomer(id, request));
   }
 }

@@ -5,6 +5,9 @@ import com.cocinadelicia.backend.order.admin.dto.CreateOrderAdminRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderFilterRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderStatsResponse;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderCustomerRequest;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderDetailsRequest;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderItemsRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -30,4 +33,13 @@ public interface OrderAdminService {
 
   /** Obtiene estadísticas de órdenes para dashboard. */
   OrderStatsResponse getStats();
+
+  /** Reemplaza los ítems de la orden y recalcula totales (solo estados editables). */
+  OrderAdminResponse updateItems(Long orderId, UpdateOrderItemsRequest request);
+
+  /** Actualiza notas, fulfillment, envío y requestedAt de la orden. */
+  OrderAdminResponse updateDetails(Long orderId, UpdateOrderDetailsRequest request);
+
+  /** Cambia el cliente asociado a la orden. */
+  OrderAdminResponse updateCustomer(Long orderId, UpdateOrderCustomerRequest request);
 }

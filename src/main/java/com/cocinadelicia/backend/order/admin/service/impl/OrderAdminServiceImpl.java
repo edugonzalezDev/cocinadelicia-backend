@@ -8,6 +8,9 @@ import com.cocinadelicia.backend.order.admin.dto.CreateOrderAdminRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderFilterRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderStatsResponse;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderCustomerRequest;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderDetailsRequest;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderItemsRequest;
 import com.cocinadelicia.backend.order.admin.mapper.OrderAdminMapper;
 import com.cocinadelicia.backend.order.admin.service.OrderAdminService;
 import com.cocinadelicia.backend.order.domain.OrderStatusTransition;
@@ -362,10 +365,8 @@ public class OrderAdminServiceImpl implements OrderAdminService {
 
     // Ingresos de pedidos solicitados hoy (excluye CANCELLED)
     Specification<CustomerOrder> requestedTodayActive =
-      notDeleted.and(
-        (root, query, cb) ->
-          cb.and(
-            cb.between(root.get("requestedAt"), startOfDay, endOfDay)));
+        notDeleted.and(
+            (root, query, cb) -> cb.and(cb.between(root.get("requestedAt"), startOfDay, endOfDay)));
     long requestedTodayActiveCount = orderRepository.count(requestedTodayActive);
 
     // Canceladas hoy
@@ -378,10 +379,9 @@ public class OrderAdminServiceImpl implements OrderAdminService {
 
     List<CustomerOrder> requestedTodayOrders = orderRepository.findAll(requestedTodayActive);
     BigDecimal revenueTotalToday =
-      requestedTodayOrders.stream()
-        .map(CustomerOrder::getTotalAmount)
-        .reduce(ZERO, BigDecimal::add);
-
+        requestedTodayOrders.stream()
+            .map(CustomerOrder::getTotalAmount)
+            .reduce(ZERO, BigDecimal::add);
 
     // Ingresos del día (suma de totalAmount de órdenes entregadas hoy)
     List<CustomerOrder> deliveredOrders = orderRepository.findAll(deliveredToday);
@@ -394,7 +394,7 @@ public class OrderAdminServiceImpl implements OrderAdminService {
     BigDecimal avgTicket = BigDecimal.ZERO;
     if (requestedTodayActiveCount > 0) {
       avgTicket =
-        revenueTotalToday.divide(
+          revenueTotalToday.divide(
               BigDecimal.valueOf(requestedTodayActiveCount), 2, java.math.RoundingMode.HALF_UP);
     }
 
@@ -410,6 +410,209 @@ public class OrderAdminServiceImpl implements OrderAdminService {
         revenueDeliveredToday,
         avgTicket,
         revenueTotalToday);
+  }
+
+  @Override
+  public OrderAdminResponse updateItems(Long orderId, UpdateOrderItemsRequest request) {
+    if (request == null || request.items() == null || request.items().isEmpty()) {
+      throw new BadRequestException("ORDER_ITEMS_EMPTY", "Debe agregar al menos un ítem.");
+    }
+
+    CustomerOrder order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
+
+    ensureEditable(order);
+
+    order.getItems().clear();
+
+    BigDecimal subtotal = ZERO;
+
+    for (OrderItemRequest it : request.items()) {
+      if (it.quantity() <= 0) {
+        throw new BadRequestException(
+            "INVALID_QUANTITY", "La cantidad de cada ítem debe ser >= 1.");
+      }
+
+      Product product =
+          productRepository
+              .findById(it.productId())
+              .orElseThrow(
+                  () -> new NotFoundException("PRODUCT_NOT_FOUND", "Producto no encontrado."));
+
+      ProductVariant variant =
+          productVariantRepository
+              .findById(it.productVariantId())
+              .orElseThrow(
+                  () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada."));
+
+      if (variant.getProduct() == null || !variant.getProduct().getId().equals(product.getId())) {
+        throw new BadRequestException(
+            "VARIANT_MISMATCH", "La variante no pertenece al producto indicado.");
+      }
+
+      BigDecimal unitPrice =
+          priceQueryPort
+              .findActivePriceByVariantId(variant.getId())
+              .orElseThrow(
+                  () ->
+                      new BadRequestException(
+                          "PRICE_NOT_FOUND",
+                          "No hay precio vigente para la variante seleccionada."))
+              .setScale(2, RoundingMode.HALF_UP);
+
+      BigDecimal lineTotal =
+          unitPrice.multiply(BigDecimal.valueOf(it.quantity())).setScale(2, RoundingMode.HALF_UP);
+      subtotal = subtotal.add(lineTotal);
+
+      OrderItem item =
+          OrderItem.builder()
+              .order(order)
+              .product(product)
+              .productVariant(variant)
+              .productName(product.getName())
+              .variantName(variant.getName())
+              .unitPrice(unitPrice)
+              .quantity(it.quantity())
+              .lineTotal(lineTotal)
+              .build();
+
+      order.addItem(item);
+    }
+
+    order.setSubtotalAmount(subtotal);
+    order.setTaxAmount(ZERO);
+    order.setDiscountAmount(ZERO);
+    order.setTotalAmount(subtotal);
+
+    CustomerOrder saved = orderRepository.save(order);
+    log.info(
+        "OrderItemsUpdated orderId={} items={} total={}",
+        orderId,
+        saved.getItems().size(),
+        subtotal);
+    return toAdminResponse(saved);
+  }
+
+  @Override
+  public OrderAdminResponse updateDetails(Long orderId, UpdateOrderDetailsRequest request) {
+    CustomerOrder order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
+
+    ensureEditable(order);
+
+    if (request == null) {
+      return toAdminResponse(order);
+    }
+
+    FulfillmentType newFulfillment =
+        request.fulfillment() != null ? request.fulfillment() : order.getFulfillment();
+
+    if (request.shipping() != null && newFulfillment != FulfillmentType.DELIVERY) {
+      throw new BadRequestException(
+          "SHIPPING_NOT_ALLOWED", "Solo puede agregar envío cuando fulfillment es DELIVERY.");
+    }
+
+    if (newFulfillment == FulfillmentType.DELIVERY) {
+      var s = request.shipping();
+      if (s == null) {
+        boolean hasShippingSnapshot =
+            !isBlank(order.getShipName())
+                && !isBlank(order.getShipPhone())
+                && !isBlank(order.getShipLine1())
+                && !isBlank(order.getShipCity());
+        if (!hasShippingSnapshot) {
+          throw new BadRequestException(
+              "DELIVERY_ADDRESS_REQUIRED",
+              "Complete los datos de envío (nombre, teléfono, dirección y ciudad).");
+        }
+      } else {
+        if (isBlank(s.name()) || isBlank(s.phone()) || isBlank(s.line1()) || isBlank(s.city())) {
+          throw new BadRequestException(
+              "DELIVERY_ADDRESS_REQUIRED",
+              "Complete los datos de envío (nombre, teléfono, dirección y ciudad).");
+        }
+        order.setShipName(s.name());
+        order.setShipPhone(s.phone());
+        order.setShipLine1(s.line1());
+        order.setShipLine2(s.line2());
+        order.setShipCity(s.city());
+        order.setShipRegion(s.region());
+        order.setShipPostalCode(s.postalCode());
+        order.setShipReference(s.reference());
+      }
+    } else {
+      order.setShipName(null);
+      order.setShipPhone(null);
+      order.setShipLine1(null);
+      order.setShipLine2(null);
+      order.setShipCity(null);
+      order.setShipRegion(null);
+      order.setShipPostalCode(null);
+      order.setShipReference(null);
+    }
+
+    if (request.notes() != null) {
+      order.setNotes(request.notes());
+    }
+
+    if (request.requestedAt() != null) {
+      order.setRequestedAt(request.requestedAt());
+    }
+
+    order.setFulfillment(newFulfillment);
+
+    CustomerOrder saved = orderRepository.save(order);
+    log.info("OrderDetailsUpdated orderId={} fulfillment={}", orderId, newFulfillment);
+    return toAdminResponse(saved);
+  }
+
+  @Override
+  public OrderAdminResponse updateCustomer(Long orderId, UpdateOrderCustomerRequest request) {
+    if (request == null || isBlank(request.userEmail())) {
+      throw new BadRequestException("USER_EMAIL_REQUIRED", "El email del cliente es obligatorio.");
+    }
+
+    CustomerOrder order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
+
+    ensureEditable(order);
+
+    AppUser user =
+        userRepository
+            .findByEmail(request.userEmail())
+            .orElseThrow(
+                () ->
+                    new NotFoundException(
+                        "USER_NOT_FOUND",
+                        "Usuario no encontrado con email: " + request.userEmail()));
+
+    order.setUser(user);
+    CustomerOrder saved = orderRepository.save(order);
+    log.info("OrderCustomerUpdated orderId={} newUserEmail={}", orderId, request.userEmail());
+    return toAdminResponse(saved);
+  }
+
+  private void ensureEditable(CustomerOrder order) {
+    OrderStatus status = order.getStatus();
+    if (status != OrderStatus.CREATED
+        && status != OrderStatus.CONFIRMED
+        && status != OrderStatus.PREPARING) {
+      throw new BadRequestException(
+          "ORDER_NOT_EDITABLE",
+          "Solo se pueden editar órdenes en estado CREATED, CONFIRMED o PREPARING.");
+    }
+  }
+
+  private OrderAdminResponse toAdminResponse(CustomerOrder order) {
+    List<OrderStatusHistory> history =
+        statusHistoryRepository.findByOrderIdOrderByChangedAtDesc(order.getId());
+    return OrderAdminMapper.toAdminResponse(order, history);
   }
 
   private Specification<CustomerOrder> buildSpecification(OrderFilterRequest filters) {
