@@ -2,6 +2,7 @@
 package com.cocinadelicia.backend.order.service;
 
 import com.cocinadelicia.backend.order.dto.*;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,4 +20,14 @@ public interface OrderService {
   OrderResponse updateStatus(Long orderId, String performedBy, UpdateOrderStatusRequest request);
 
   Page<OrderResponse> findOrders(OrderFilter filter, Pageable pageable);
+
+  /**
+   * Obtiene la orden activa del usuario (no DELIVERED ni CANCELED).
+   */
+  Optional<OrderResponse> getCurrentOrder(Long appUserId);
+
+  /**
+   * Cancela una orden del cliente (solo si el estado lo permite).
+   */
+  OrderResponse cancelOrder(Long orderId, String reason, Long appUserId);
 }

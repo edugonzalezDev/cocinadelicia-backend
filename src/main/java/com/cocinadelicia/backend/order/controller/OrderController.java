@@ -3,7 +3,9 @@ package com.cocinadelicia.backend.order.controller;
 import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
 import com.cocinadelicia.backend.common.web.ApiError;
+import com.cocinadelicia.backend.order.domain.OrderOwnershipValidator;
 import com.cocinadelicia.backend.order.dto.CreateOrderRequest;
+import com.cocinadelicia.backend.order.dto.OrderCancelRequest;
 import com.cocinadelicia.backend.order.dto.OrderFilter;
 import com.cocinadelicia.backend.order.dto.OrderPageResponse;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
@@ -49,6 +51,7 @@ public class OrderController {
   private final OrderService orderService;
   private final UserService userService;
   private final CurrentUserService currentUserService;
+  private final OrderOwnershipValidator ownershipValidator;
 
   // ---------- Cliente autenticado ----------
   @Operation(
@@ -83,6 +86,7 @@ public class OrderController {
           """
         Devuelve el detalle de un pedido perteneciente al usuario autenticado.
         Si el pedido no existe o no pertenece al usuario, devuelve 404.
+        SEGURIDAD: Validación de ownership implementada.
         """,
       responses = {
         @ApiResponse(
@@ -92,13 +96,60 @@ public class OrderController {
         @ApiResponse(
             responseCode = "404",
             description = "Pedido no encontrado o no pertenece al usuario",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos para acceder a este pedido",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
       })
   @GetMapping("/{id}")
   public ResponseEntity<OrderResponse> getOrderById(
       @AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
     Long appUserId = userService.resolveUserIdFromJwt(jwt);
+
+    // CRÍTICO: Validar ownership antes de retornar
+    ownershipValidator.validateOwnershipAndNotDeleted(id, appUserId);
+
     return ResponseEntity.ok(orderService.getOrderById(id, appUserId));
+  }
+
+  @Operation(
+      summary = "Obtener pedido activo actual",
+      description = "Devuelve el pedido activo (no DELIVERED ni CANCELED) más reciente del usuario",
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Pedido activo encontrado",
+            content = @Content(schema = @Schema(implementation = OrderResponse.class))),
+        @ApiResponse(
+            responseCode = "204",
+            description = "No hay pedidos activos")
+      })
+  @GetMapping("/current")
+  public ResponseEntity<OrderResponse> getCurrentOrder(@AuthenticationPrincipal Jwt jwt) {
+    Long appUserId = currentUserService.getOrCreateCurrentUserId();
+    return orderService.getCurrentOrder(appUserId)
+        .map(ResponseEntity::ok)
+        .orElse(ResponseEntity.noContent().build());
+  }
+
+  @Operation(
+      summary = "Obtener historial de pedidos",
+      description = "Lista paginada de todos los pedidos del usuario (incluye finalizados)",
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Historial de pedidos",
+            content = @Content(schema = @Schema(implementation = Page.class)))
+      })
+  @GetMapping("/history")
+  public ResponseEntity<Page<OrderResponse>> getOrderHistory(
+      @AuthenticationPrincipal Jwt jwt,
+      @ParameterObject
+          @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    Long appUserId = currentUserService.getOrCreateCurrentUserId();
+    return ResponseEntity.ok(orderService.getMyOrders(appUserId, pageable));
   }
 
   @Operation(
@@ -121,6 +172,44 @@ public class OrderController {
           Pageable pageable) {
     Long appUserId = currentUserService.getOrCreateCurrentUserId();
     return ResponseEntity.ok(orderService.getMyOrders(appUserId, pageable));
+  }
+
+  @Operation(
+      summary = "Cancelar un pedido",
+      description =
+          """
+        Permite al cliente cancelar su pedido. Solo se pueden cancelar pedidos en estado CREATED o CONFIRMED.
+        """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Pedido cancelado exitosamente",
+            content = @Content(schema = @Schema(implementation = OrderResponse.class))),
+        @ApiResponse(
+            responseCode = "400",
+            description = "No se puede cancelar el pedido en su estado actual",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Pedido no encontrado",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos para cancelar este pedido",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+      })
+  @PatchMapping("/{id}/cancel")
+  public ResponseEntity<OrderResponse> cancelOrder(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable Long id,
+      @Valid @RequestBody OrderCancelRequest request) {
+    Long appUserId = currentUserService.getOrCreateCurrentUserId();
+
+    // Validar ownership
+    ownershipValidator.validateOwnershipAndNotDeleted(id, appUserId);
+
+    String reason = request != null ? request.reason() : null;
+    return ResponseEntity.ok(orderService.cancelOrder(id, reason, appUserId));
   }
 
   // ---------- Staff (ADMIN o CHEF) ----------

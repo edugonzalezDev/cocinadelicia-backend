@@ -2,6 +2,7 @@
 package com.cocinadelicia.backend.common.web;
 
 import com.cocinadelicia.backend.common.exception.BadRequestException;
+import com.cocinadelicia.backend.common.exception.ForbiddenException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.user.service.UserService.EmailConflictException;
 import com.cocinadelicia.backend.user.service.UserService.MissingEmailException;
@@ -107,6 +108,15 @@ public class GlobalExceptionHandler {
     log.warn("NotFound code={} msg={} path={}", ex.code(), ex.getMessage(), getPath(request));
     return ApiError.of(
         HttpStatus.NOT_FOUND.value(), "Not Found", ex.getMessage(), getPath(request), ex.code());
+  }
+
+  // 6b) Forbidden de negocio (ej: ownership validation)
+  @ExceptionHandler(ForbiddenException.class)
+  @ResponseStatus(HttpStatus.FORBIDDEN)
+  public ApiError handleForbiddenBusiness(ForbiddenException ex, WebRequest request) {
+    log.warn("Forbidden code={} msg={} path={}", ex.code(), ex.getMessage(), getPath(request));
+    return ApiError.of(
+        HttpStatus.FORBIDDEN.value(), "Forbidden", ex.getMessage(), getPath(request), ex.code());
   }
 
   // 7) Access Denied (403)
