@@ -195,6 +195,18 @@ public class ProductCatalogMapper {
     MoneyResponse price = new MoneyResponse(priceInfo.amount(), priceInfo.currency().name());
     String availabilityLabel = computeAvailabilityLabel(variant);
 
+    // Mapear modifier groups para esta variante
+    List<ModifierGroupCatalogResponse> modifiers =
+        variant.getModifierGroups() == null
+            ? List.of()
+            : variant.getModifierGroups().stream()
+                .filter(ModifierGroup::isActive)
+                .sorted(
+                    Comparator.comparingInt(ModifierGroup::getSortOrder)
+                        .thenComparingLong(ModifierGroup::getId))
+                .map(g -> toModifierGroupResponse(variant, g))
+                .toList();
+
     return Optional.of(
         new CatalogVariantResponse(
             variant.getId(),
@@ -202,7 +214,8 @@ public class ProductCatalogMapper {
             price,
             variant.isManagesStock(),
             variant.getStockQuantity(),
-            availabilityLabel));
+            availabilityLabel,
+            modifiers));
   }
 
   private String computeAvailabilityLabel(ProductVariant variant) {

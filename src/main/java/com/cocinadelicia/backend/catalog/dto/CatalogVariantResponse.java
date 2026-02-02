@@ -2,6 +2,7 @@
 package com.cocinadelicia.backend.catalog.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
 
 @Schema(description = "Variante de producto para el catálogo público")
 public record CatalogVariantResponse(
@@ -14,4 +15,6 @@ public record CatalogVariantResponse(
     @Schema(
             description = "Etiqueta de disponibilidad para mostrar en la UI",
             example = "Disponible")
-        String availabilityLabel) {}
+        String availabilityLabel,
+    @Schema(description = "Grupos de modificadores disponibles para esta variante")
+        List<ModifierGroupCatalogResponse> modifiers) {}

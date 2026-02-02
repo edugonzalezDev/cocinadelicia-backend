@@ -4,26 +4,37 @@ import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminPatchRequest
 import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminRequest;
 import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminResponse;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductImageService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/catalog")
+@Tag(
+    name = "admin-product-images",
+    description = "Gestión de imágenes de productos (CRUD, ordenamiento, is_main)")
+@SecurityRequirement(name = "bearer-jwt")
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminProductImageManagementController {
 
   private final AdminProductImageService service;
 
   @GetMapping("/products/{productId}/images")
+  @Operation(summary = "Listar imágenes de un producto")
   public ResponseEntity<List<ProductImageAdminResponse>> list(@PathVariable long productId) {
     return ResponseEntity.ok(service.listByProduct(productId));
   }
 
   @PostMapping("/products/{productId}/images")
+  @Operation(summary = "Agregar imagen a un producto")
   public ResponseEntity<ProductImageAdminResponse> add(
       @PathVariable long productId, @Valid @RequestBody ProductImageAdminRequest body) {
     ProductImageAdminResponse created = service.addToProduct(productId, body);
@@ -32,12 +43,14 @@ public class AdminProductImageManagementController {
   }
 
   @PatchMapping("/images/{imageId}")
+  @Operation(summary = "Actualizar metadatos de imagen (is_main, sort_order)")
   public ResponseEntity<ProductImageAdminResponse> patch(
       @PathVariable long imageId, @RequestBody ProductImageAdminPatchRequest body) {
     return ResponseEntity.ok(service.patch(imageId, body));
   }
 
   @DeleteMapping("/images/{imageId}")
+  @Operation(summary = "Eliminar una imagen")
   public ResponseEntity<Void> delete(@PathVariable long imageId) {
     service.delete(imageId);
     return ResponseEntity.noContent().build();

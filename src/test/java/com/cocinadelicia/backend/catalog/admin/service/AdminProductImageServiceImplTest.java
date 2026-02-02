@@ -38,7 +38,9 @@ class AdminProductImageServiceImplTest {
   void setup() {
     product = new Product();
     product.setId(10L);
-    when(cdnUrlBuilder.toPublicUrl(any())).thenReturn("http://cdn/url");
+    org.mockito.Mockito.lenient()
+        .when(cdnUrlBuilder.toPublicUrl(any()))
+        .thenReturn("http://cdn/url");
   }
 
   @Test

@@ -18,14 +18,18 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = AdminCatalogController.class)
 @Import(SecurityConfig.class)
 @TestPropertySource(properties = {"cdd.security.groups-claim=cognito:groups"})
+@ActiveProfiles("test")
 class AdminCatalogSecurityTest {
 
   @Autowired private MockMvc mvc;
@@ -35,6 +39,7 @@ class AdminCatalogSecurityTest {
   @MockitoBean private AdminProductVariantService variantService;
   @MockitoBean private AdminModifierGroupService modifierGroupService;
   @MockitoBean private AdminModifierOptionService modifierOptionService;
+  @MockitoBean private JwtDecoder jwtDecoder;
 
   @BeforeEach
   void setupMocks() {
@@ -57,7 +62,7 @@ class AdminCatalogSecurityTest {
   void adminEndpoint_withChefToken_returns403() throws Exception {
     mvc.perform(
             get("/api/admin/catalog/products")
-                .with(jwt().jwt(jwt -> jwt.claim("cognito:groups", List.of("CHEF")))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CHEF"))))
         .andExpect(status().isForbidden());
   }
 
@@ -65,7 +70,7 @@ class AdminCatalogSecurityTest {
   void adminEndpoint_withAdminToken_returns200() throws Exception {
     mvc.perform(
             get("/api/admin/catalog/products")
-                .with(jwt().jwt(jwt -> jwt.claim("cognito:groups", List.of("ADMIN")))))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
         .andExpect(status().isOk());
   }
 }

@@ -30,7 +30,6 @@ import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -39,12 +38,15 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = OrderController.class)
 @Import({OrderControllerTest.MockConfig.class, OrderControllerTest.MethodSecurityConfig.class})
 @TestPropertySource(
-    properties = {"spring.security.oauth2.resourceserver.jwt.issuer-uri=disabled-for-tests"})
+    properties = {
+      "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:0/fake-jwks"
+    })
 class OrderControllerTest {
 
   @Autowired MockMvc mvc;

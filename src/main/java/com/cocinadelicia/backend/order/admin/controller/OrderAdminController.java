@@ -26,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -89,20 +90,30 @@ public class OrderAdminController {
     return ResponseEntity.ok(orderAdminService.getOrderCustomer(id));
   }
 
-  @PatchMapping("/{id}/status")
+  @PatchMapping(value = "/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE)
   @Operation(
       summary = "Actualizar estado de una orden",
       description =
           "Permite cambiar el estado de una orden. Admin puede hacer cualquier transición válida.")
-  public ResponseEntity<OrderAdminResponse> updateStatus(
+  public ResponseEntity<OrderAdminResponse> updateStatusJson(
+      @PathVariable Long id, @Valid @RequestBody UpdateOrderStatusAdminRequest body) {
+    return updateStatusInternal(id, body.status(), body.reason());
+  }
+
+  @PatchMapping(value = "/{id}/status", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+  @Operation(
+      summary = "Actualizar estado de una orden",
+      description =
+          "Permite cambiar el estado de una orden. Admin puede hacer cualquier transición válida.")
+  public ResponseEntity<OrderAdminResponse> updateStatusForm(
       @PathVariable Long id,
-      @Valid @RequestBody(required = false) UpdateOrderStatusAdminRequest body,
-      @Parameter(description = "Nuevo estado (compatibilidad)") @RequestParam(required = false)
-          OrderStatus status,
-      @Parameter(description = "Razón del cambio (compatibilidad)") @RequestParam(required = false)
-          String reason) {
-    OrderStatus resolvedStatus = body != null ? body.status() : status;
-    String resolvedReason = body != null ? body.reason() : reason;
+      @Parameter(description = "Nuevo estado") @RequestParam OrderStatus status,
+      @Parameter(description = "Razón del cambio") @RequestParam(required = false) String reason) {
+    return updateStatusInternal(id, status, reason);
+  }
+
+  private ResponseEntity<OrderAdminResponse> updateStatusInternal(
+      Long id, OrderStatus resolvedStatus, String resolvedReason) {
     if (resolvedStatus == null) {
       throw new BadRequestException("STATUS_REQUIRED", "El estado es obligatorio.");
     }

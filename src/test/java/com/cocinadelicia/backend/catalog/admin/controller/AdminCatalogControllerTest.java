@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.cocinadelicia.backend.catalog.admin.service.AdminCategoryService;
+import com.cocinadelicia.backend.catalog.admin.service.AdminModifierGroupService;
+import com.cocinadelicia.backend.catalog.admin.service.AdminModifierOptionService;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductService;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductVariantService;
 import com.cocinadelicia.backend.common.exception.BadRequestException;
@@ -45,7 +47,9 @@ import org.springframework.test.web.servlet.MockMvc;
   AdminCatalogControllerTest.MethodSecurityConfig.class
 })
 @TestPropertySource(
-    properties = {"spring.security.oauth2.resourceserver.jwt.issuer-uri=disabled-for-tests"})
+    properties = {
+      "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:0/fake-jwks"
+    })
 class AdminCatalogControllerTest {
 
   @Autowired MockMvc mvc;
@@ -54,6 +58,8 @@ class AdminCatalogControllerTest {
   @Autowired AdminCategoryService categoryService;
   @Autowired AdminProductService productService;
   @Autowired AdminProductVariantService variantService;
+  @Autowired AdminModifierGroupService modifierGroupService;
+  @Autowired AdminModifierOptionService modifierOptionService;
 
   @TestConfiguration
   static class MockConfig {
@@ -70,6 +76,16 @@ class AdminCatalogControllerTest {
     @Bean
     AdminProductVariantService variantService() {
       return Mockito.mock(AdminProductVariantService.class);
+    }
+
+    @Bean
+    AdminModifierGroupService modifierGroupService() {
+      return Mockito.mock(AdminModifierGroupService.class);
+    }
+
+    @Bean
+    AdminModifierOptionService modifierOptionService() {
+      return Mockito.mock(AdminModifierOptionService.class);
     }
 
     @Bean
@@ -97,6 +113,16 @@ class AdminCatalogControllerTest {
         .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
   }
 
+  private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor noRoleJwt() {
+    return jwt()
+        .jwt(
+            jwt -> {
+              jwt.subject("sub-123");
+              jwt.claim("email", "user@test.com");
+            })
+        .authorities();
+  }
+
   private ProductVariantAdminResponse sampleVariantResponse(Long id) {
     return new ProductVariantAdminResponse(id, "Variante", "SKU-1", true, true, 5);
   }
@@ -120,7 +146,12 @@ class AdminCatalogControllerTest {
 
   @BeforeEach
   void resetMocks() {
-    Mockito.reset(categoryService, productService, variantService);
+    Mockito.reset(
+        categoryService,
+        productService,
+        variantService,
+        modifierGroupService,
+        modifierOptionService);
   }
 
   @Test
@@ -306,5 +337,47 @@ class AdminCatalogControllerTest {
                 .content(om.writeValueAsString(request)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("VARIANT_NOT_FOUND"));
+  }
+
+  @Test
+  void getProducts_withoutToken_returns401() throws Exception {
+    mvc.perform(get("/api/admin/catalog/products")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void getProducts_withoutAdminRole_returns403() throws Exception {
+    mvc.perform(get("/api/admin/catalog/products").with(noRoleJwt()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void getModifierGroups_ok_returns200() throws Exception {
+    Mockito.when(modifierGroupService.getByProduct(10L)).thenReturn(List.of());
+
+    mvc.perform(get("/api/admin/catalog/products/10/modifier-groups").with(adminJwt()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray());
+  }
+
+  @Test
+  void getModifierGroups_notFound_returns404() throws Exception {
+    Mockito.when(modifierGroupService.getByProduct(999L))
+        .thenThrow(new NotFoundException("PRODUCT_NOT_FOUND", "No existe"));
+
+    mvc.perform(get("/api/admin/catalog/products/999/modifier-groups").with(adminJwt()))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+  }
+
+  @Test
+  void getModifierGroups_withoutToken_returns401() throws Exception {
+    mvc.perform(get("/api/admin/catalog/products/10/modifier-groups"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void getModifierGroups_withoutAdminRole_returns403() throws Exception {
+    mvc.perform(get("/api/admin/catalog/products/10/modifier-groups").with(noRoleJwt()))
+        .andExpect(status().isForbidden());
   }
 }

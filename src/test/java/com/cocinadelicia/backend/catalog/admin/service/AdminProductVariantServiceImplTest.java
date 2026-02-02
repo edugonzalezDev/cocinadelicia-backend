@@ -46,7 +46,8 @@ class AdminProductVariantServiceImplTest {
   void setup() {
     variant = new ProductVariant();
     variant.setId(10L);
-    when(mapper.toAdminResponse(any()))
+    org.mockito.Mockito.lenient()
+        .when(mapper.toAdminResponse(any()))
         .thenReturn(new ProductVariantAdminResponse(10L, "Var", "SKU", true, false, 0));
   }
 

@@ -16,6 +16,6 @@ public record ProductAdminResponse(
     boolean isActive,
     Instant updatedAt,
     int variantsCount,
-    boolean featured,
-    boolean dailyMenu,
+    boolean isFeatured,
+    boolean isDailyMenu,
     boolean isNew) {}

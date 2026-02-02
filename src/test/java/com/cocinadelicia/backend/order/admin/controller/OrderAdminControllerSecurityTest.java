@@ -16,7 +16,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.TestPropertySource;
@@ -25,10 +24,12 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(controllers = OrderAdminController.class)
 @Import({
   OrderAdminControllerSecurityTest.MockConfig.class,
-  OrderAdminControllerSecurityTest.MethodSecurityConfig.class
+  com.cocinadelicia.backend.common.config.SecurityConfig.class
 })
 @TestPropertySource(
-    properties = {"spring.security.oauth2.resourceserver.jwt.issuer-uri=disabled-for-tests"})
+    properties = {
+      "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:0/fake-jwks"
+    })
 class OrderAdminControllerSecurityTest {
 
   @Autowired private MockMvc mvc;
@@ -51,10 +52,6 @@ class OrderAdminControllerSecurityTest {
       return Mockito.mock(JwtDecoder.class);
     }
   }
-
-  @TestConfiguration
-  @EnableMethodSecurity
-  static class MethodSecurityConfig {}
 
   private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor noRoleJwt() {
     return SecurityMockMvcRequestPostProcessors.jwt()

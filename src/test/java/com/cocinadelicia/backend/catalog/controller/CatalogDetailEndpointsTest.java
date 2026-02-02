@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -27,11 +28,12 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(controllers = CatalogController.class)
 @Import({CatalogDetailEndpointsTest.MockConfig.class})
 @TestPropertySource(
     properties = {
-      "spring.security.oauth2.resourceserver.jwt.issuer-uri=disabled-for-tests",
+      "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:0/fake-jwks",
       "app.cdn.base-url=https://cdn.test/"
     })
 class CatalogDetailEndpointsTest {
@@ -91,7 +93,8 @@ class CatalogDetailEndpointsTest {
 
   private ProductDetailResponse sampleDetail() {
     var price = new MoneyResponse(new BigDecimal("590"), "UYU");
-    var variant = new CatalogVariantResponse(100L, "Grande", price, true, 12, "Disponible");
+    var variant =
+        new CatalogVariantResponse(100L, "Grande", price, true, 12, "Disponible", List.of());
     var image =
         new CatalogImageResponse(
             1L, "https://cdn.test/products/main.jpg", true, 0, "Milanesa clásica");

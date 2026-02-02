@@ -44,7 +44,9 @@ import org.springframework.test.web.servlet.MockMvc;
   AdminProductImageManagementControllerTest.MethodSecurityConfig.class
 })
 @TestPropertySource(
-    properties = {"spring.security.oauth2.resourceserver.jwt.issuer-uri=disabled-for-tests"})
+    properties = {
+      "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:0/fake-jwks"
+    })
 class AdminProductImageManagementControllerTest {
 
   @Autowired MockMvc mvc;
@@ -88,6 +90,16 @@ class AdminProductImageManagementControllerTest {
               jwt.claim("email", "admin@test.com");
             })
         .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+  }
+
+  private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor noRoleJwt() {
+    return jwt()
+        .jwt(
+            jwt -> {
+              jwt.subject("sub-123");
+              jwt.claim("email", "user@test.com");
+            })
+        .authorities();
   }
 
   @Test
@@ -158,5 +170,16 @@ class AdminProductImageManagementControllerTest {
   void delete_ok_returns204() throws Exception {
     mvc.perform(delete("/api/admin/catalog/images/10").with(adminJwt()))
         .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void list_withoutToken_returns401() throws Exception {
+    mvc.perform(get("/api/admin/catalog/products/10/images")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void list_withoutAdminRole_returns403() throws Exception {
+    mvc.perform(get("/api/admin/catalog/products/10/images").with(noRoleJwt()))
+        .andExpect(status().isForbidden());
   }
 }
