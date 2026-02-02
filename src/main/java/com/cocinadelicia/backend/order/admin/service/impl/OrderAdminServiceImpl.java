@@ -4,7 +4,10 @@ import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.model.enums.FulfillmentType;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
+import com.cocinadelicia.backend.common.model.enums.RoleName;
 import com.cocinadelicia.backend.order.admin.dto.CreateOrderAdminRequest;
+import com.cocinadelicia.backend.order.admin.dto.OrderAdminCustomerResponse;
+import com.cocinadelicia.backend.order.admin.dto.OrderAdminDetailsResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderFilterRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderStatsResponse;
@@ -13,22 +16,35 @@ import com.cocinadelicia.backend.order.admin.dto.UpdateOrderDetailsRequest;
 import com.cocinadelicia.backend.order.admin.dto.UpdateOrderItemsRequest;
 import com.cocinadelicia.backend.order.admin.mapper.OrderAdminMapper;
 import com.cocinadelicia.backend.order.admin.service.OrderAdminService;
-import com.cocinadelicia.backend.order.domain.OrderStatusTransition;
+import com.cocinadelicia.backend.order.domain.OrderStatusTransitionValidator;
+import com.cocinadelicia.backend.order.dto.OrderItemModifierRequest;
 import com.cocinadelicia.backend.order.dto.OrderItemRequest;
 import com.cocinadelicia.backend.order.events.OrderWebSocketPublisher;
 import com.cocinadelicia.backend.order.model.CustomerOrder;
 import com.cocinadelicia.backend.order.model.OrderItem;
+import com.cocinadelicia.backend.order.model.OrderItemModifier;
 import com.cocinadelicia.backend.order.model.OrderStatusHistory;
 import com.cocinadelicia.backend.order.port.PriceQueryPort;
 import com.cocinadelicia.backend.order.repository.CustomerOrderRepository;
 import com.cocinadelicia.backend.order.repository.OrderStatusHistoryRepository;
+import com.cocinadelicia.backend.product.model.ModifierGroup;
+import com.cocinadelicia.backend.product.model.ModifierOption;
+import com.cocinadelicia.backend.product.model.ModifierSelectionMode;
 import com.cocinadelicia.backend.product.model.Product;
 import com.cocinadelicia.backend.product.model.ProductVariant;
+import com.cocinadelicia.backend.product.repository.ModifierGroupRepository;
 import com.cocinadelicia.backend.product.repository.ProductRepository;
 import com.cocinadelicia.backend.product.repository.ProductVariantRepository;
 import com.cocinadelicia.backend.user.model.AppUser;
+import com.cocinadelicia.backend.user.model.CustomerAddress;
+import com.cocinadelicia.backend.user.repository.CustomerAddressRepository;
+import com.cocinadelicia.backend.user.repository.RoleRepository;
 import com.cocinadelicia.backend.user.repository.UserRepository;
+import com.cocinadelicia.backend.user.repository.UserRoleRepository;
 import com.cocinadelicia.backend.user.service.CurrentUserService;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -36,7 +52,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
@@ -53,8 +71,12 @@ public class OrderAdminServiceImpl implements OrderAdminService {
   private final CustomerOrderRepository orderRepository;
   private final OrderStatusHistoryRepository statusHistoryRepository;
   private final UserRepository userRepository;
+  private final RoleRepository roleRepository;
+  private final UserRoleRepository userRoleRepository;
+  private final CustomerAddressRepository customerAddressRepository;
   private final ProductRepository productRepository;
   private final ProductVariantRepository productVariantRepository;
+  private final ModifierGroupRepository modifierGroupRepository;
   private final PriceQueryPort priceQueryPort;
   private final CurrentUserService currentUserService;
   private final OrderWebSocketPublisher orderWebSocketPublisher;
@@ -134,7 +156,7 @@ public class OrderAdminServiceImpl implements OrderAdminService {
 
       ProductVariant variant =
           productVariantRepository
-              .findById(it.productVariantId())
+              .findByIdForUpdate(it.productVariantId())
               .orElseThrow(
                   () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada."));
 
@@ -153,9 +175,10 @@ public class OrderAdminServiceImpl implements OrderAdminService {
                           "No hay precio vigente para la variante seleccionada."));
 
       unitPrice = unitPrice.setScale(2, RoundingMode.HALF_UP);
-      BigDecimal lineTotal =
+      BigDecimal baseLineTotal =
           unitPrice.multiply(BigDecimal.valueOf(it.quantity())).setScale(2, RoundingMode.HALF_UP);
-      subtotal = subtotal.add(lineTotal);
+
+      checkAndConsumeStock(variant, it.quantity());
 
       OrderItem item =
           OrderItem.builder()
@@ -166,8 +189,13 @@ public class OrderAdminServiceImpl implements OrderAdminService {
               .variantName(variant.getName())
               .unitPrice(unitPrice)
               .quantity(it.quantity())
-              .lineTotal(lineTotal)
+              .lineTotal(baseLineTotal)
               .build();
+
+      BigDecimal modifiersTotal = applyModifiersAndPricing(item, variant, it.modifiers());
+      item.setLineTotal(baseLineTotal.add(modifiersTotal).setScale(2, RoundingMode.HALF_UP));
+
+      subtotal = subtotal.add(item.getLineTotal());
 
       order.addItem(item);
     }
@@ -245,7 +273,7 @@ public class OrderAdminServiceImpl implements OrderAdminService {
     OrderStatus oldStatus = order.getStatus();
 
     // Validar transición
-    OrderStatusTransition.validateTransition(oldStatus, newStatus);
+    OrderStatusTransitionValidator.validateOrThrow(oldStatus, newStatus);
 
     // Actualizar estado
     order.setStatus(newStatus);
@@ -297,6 +325,30 @@ public class OrderAdminServiceImpl implements OrderAdminService {
             .findById(orderId)
             .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
 
+    if (isBlank(chefEmail)) {
+      throw new BadRequestException("CHEF_EMAIL_REQUIRED", "El email del chef es obligatorio.");
+    }
+
+    AppUser chefUser =
+        userRepository
+            .findByEmail(chefEmail)
+            .orElseThrow(
+                () ->
+                    new NotFoundException(
+                        "USER_NOT_FOUND", "Usuario no encontrado con email: " + chefEmail));
+
+    Long chefRoleId =
+        roleRepository
+            .findByName(RoleName.CHEF)
+            .map(r -> r.getId())
+            .orElseThrow(
+                () -> new NotFoundException("ROLE_NOT_FOUND", "No existe el rol CHEF en la base."));
+
+    boolean isChef = userRoleRepository.existsByUserIdAndRoleId(chefUser.getId(), chefRoleId);
+    if (!isChef) {
+      throw new BadRequestException("USER_NOT_CHEF", "El usuario no tiene rol CHEF: " + chefEmail);
+    }
+
     order.setAssignedChefEmail(chefEmail);
     CustomerOrder saved = orderRepository.save(order);
 
@@ -317,8 +369,20 @@ public class OrderAdminServiceImpl implements OrderAdminService {
             .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
 
     String deletedBy = currentUserService.getCurrentUserEmail();
+    OrderStatus previousStatus = order.getStatus();
     order.softDelete(deletedBy);
     orderRepository.save(order);
+
+    OrderStatusHistory historyEntry =
+        OrderStatusHistory.builder()
+            .orderId(orderId)
+            .fromStatus(previousStatus)
+            .toStatus(OrderStatus.CANCELLED)
+            .changedBy(deletedBy)
+            .changedAt(Instant.now())
+            .reason("Orden cancelada por administrador")
+            .build();
+    statusHistoryRepository.save(historyEntry);
 
     log.info("OrderDeleted orderId={} by={}", orderId, deletedBy);
   }
@@ -425,31 +489,84 @@ public class OrderAdminServiceImpl implements OrderAdminService {
 
     ensureEditable(order);
 
-    order.getItems().clear();
+    for (var it : request.items()) {
+      Long orderItemId = it.orderItemId();
 
-    BigDecimal subtotal = ZERO;
+      if (orderItemId != null && orderItemId > 0) {
+        OrderItem item =
+            order.getItems().stream()
+                .filter(existing -> existing.getId().equals(orderItemId))
+                .findFirst()
+                .orElseThrow(
+                    () ->
+                        new NotFoundException(
+                            "ORDER_ITEM_NOT_FOUND", "Ítem no encontrado: " + orderItemId));
 
-    for (OrderItemRequest it : request.items()) {
+        if (it.quantity() == 0) {
+          order.getItems().remove(item);
+          continue;
+        }
+
+        ProductVariant variant =
+            productVariantRepository
+                .findByIdForUpdate(item.getProductVariant().getId())
+                .orElseThrow(
+                    () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada."));
+
+        BigDecimal unitPrice =
+            priceQueryPort
+                .findActivePriceByVariantId(variant.getId())
+                .orElseThrow(
+                    () ->
+                        new BadRequestException(
+                            "PRICE_NOT_FOUND",
+                            "No hay precio vigente para la variante seleccionada."))
+                .setScale(2, RoundingMode.HALF_UP);
+
+        checkAndConsumeStock(variant, it.quantity());
+
+        BigDecimal baseLineTotal =
+            unitPrice.multiply(BigDecimal.valueOf(it.quantity())).setScale(2, RoundingMode.HALF_UP);
+
+        item.setQuantity(it.quantity());
+        item.setUnitPrice(unitPrice);
+        item.setLineTotal(baseLineTotal);
+        item.getModifiers().clear();
+
+        BigDecimal modifiersTotal = applyModifiersAndPricing(item, variant, it.modifiers());
+        item.setLineTotal(baseLineTotal.add(modifiersTotal).setScale(2, RoundingMode.HALF_UP));
+        continue;
+      }
+
+      if (it.productVariantId() == null) {
+        throw new BadRequestException(
+            "PRODUCT_VARIANT_REQUIRED", "Debe indicar productVariantId para agregar un ítem.");
+      }
+
       if (it.quantity() <= 0) {
         throw new BadRequestException(
             "INVALID_QUANTITY", "La cantidad de cada ítem debe ser >= 1.");
       }
 
-      Product product =
-          productRepository
-              .findById(it.productId())
-              .orElseThrow(
-                  () -> new NotFoundException("PRODUCT_NOT_FOUND", "Producto no encontrado."));
-
       ProductVariant variant =
           productVariantRepository
-              .findById(it.productVariantId())
+              .findByIdForUpdate(it.productVariantId())
               .orElseThrow(
                   () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada."));
 
-      if (variant.getProduct() == null || !variant.getProduct().getId().equals(product.getId())) {
-        throw new BadRequestException(
-            "VARIANT_MISMATCH", "La variante no pertenece al producto indicado.");
+      Product product;
+      if (it.productId() != null) {
+        product =
+            productRepository
+                .findById(it.productId())
+                .orElseThrow(
+                    () -> new NotFoundException("PRODUCT_NOT_FOUND", "Producto no encontrado."));
+        if (variant.getProduct() == null || !variant.getProduct().getId().equals(product.getId())) {
+          throw new BadRequestException(
+              "VARIANT_MISMATCH", "La variante no pertenece al producto indicado.");
+        }
+      } else {
+        product = variant.getProduct();
       }
 
       BigDecimal unitPrice =
@@ -462,11 +579,12 @@ public class OrderAdminServiceImpl implements OrderAdminService {
                           "No hay precio vigente para la variante seleccionada."))
               .setScale(2, RoundingMode.HALF_UP);
 
-      BigDecimal lineTotal =
-          unitPrice.multiply(BigDecimal.valueOf(it.quantity())).setScale(2, RoundingMode.HALF_UP);
-      subtotal = subtotal.add(lineTotal);
+      checkAndConsumeStock(variant, it.quantity());
 
-      OrderItem item =
+      BigDecimal baseLineTotal =
+          unitPrice.multiply(BigDecimal.valueOf(it.quantity())).setScale(2, RoundingMode.HALF_UP);
+
+      OrderItem newItem =
           OrderItem.builder()
               .order(order)
               .product(product)
@@ -475,11 +593,20 @@ public class OrderAdminServiceImpl implements OrderAdminService {
               .variantName(variant.getName())
               .unitPrice(unitPrice)
               .quantity(it.quantity())
-              .lineTotal(lineTotal)
+              .lineTotal(baseLineTotal)
               .build();
 
-      order.addItem(item);
+      BigDecimal modifiersTotal = applyModifiersAndPricing(newItem, variant, it.modifiers());
+      newItem.setLineTotal(baseLineTotal.add(modifiersTotal).setScale(2, RoundingMode.HALF_UP));
+      order.addItem(newItem);
     }
+
+    if (order.getItems().isEmpty()) {
+      throw new BadRequestException("ORDER_ITEMS_EMPTY", "Debe quedar al menos un ítem.");
+    }
+
+    BigDecimal subtotal =
+        order.getItems().stream().map(OrderItem::getLineTotal).reduce(ZERO, BigDecimal::add);
 
     order.setSubtotalAmount(subtotal);
     order.setTaxAmount(ZERO);
@@ -598,6 +725,87 @@ public class OrderAdminServiceImpl implements OrderAdminService {
     return toAdminResponse(saved);
   }
 
+  @Override
+  public OrderAdminDetailsResponse getOrderDetails(Long id) {
+    CustomerOrder order =
+        orderRepository
+            .findById(id)
+            .orElseThrow(() -> new NotFoundException("Order not found with id: " + id));
+
+    return new OrderAdminDetailsResponse(
+        order.getId(),
+        order.getStatus(),
+        order.getFulfillment(),
+        order.getCurrency(),
+        order.getSubtotalAmount(),
+        order.getTaxAmount(),
+        order.getDiscountAmount(),
+        order.getTotalAmount(),
+        order.getShipName(),
+        order.getShipPhone(),
+        order.getShipLine1(),
+        order.getShipLine2(),
+        order.getShipCity(),
+        order.getShipRegion(),
+        order.getShipPostalCode(),
+        order.getShipReference(),
+        order.getNotes(),
+        order.getAssignedChefEmail(),
+        order.getRequestedAt(),
+        order.getDeliveredAt(),
+        order.getItems().stream().map(OrderAdminMapper::toItemResponse).toList(),
+        order.getCreatedAt(),
+        order.getUpdatedAt(),
+        order.getDeletedAt(),
+        order.getDeletedBy());
+  }
+
+  @Override
+  public OrderAdminCustomerResponse getOrderCustomer(Long orderId) {
+    CustomerOrder order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new NotFoundException("Order not found with id: " + orderId));
+
+    AppUser user = order.getUser();
+    List<CustomerAddress> addresses = customerAddressRepository.findByUser_Id(user.getId());
+
+    var addressDtos =
+        addresses.stream()
+            .map(
+                address ->
+                    new OrderAdminCustomerResponse.CustomerAddressResponse(
+                        address.getId(),
+                        address.getLabel(),
+                        address.getLine1(),
+                        address.getLine2(),
+                        address.getCity(),
+                        address.getRegion(),
+                        address.getPostalCode(),
+                        address.getReference()))
+            .toList();
+
+    var shippingSnapshot =
+        new OrderAdminCustomerResponse.ShippingSnapshotResponse(
+            order.getShipName(),
+            order.getShipPhone(),
+            order.getShipLine1(),
+            order.getShipLine2(),
+            order.getShipCity(),
+            order.getShipRegion(),
+            order.getShipPostalCode(),
+            order.getShipReference());
+
+    return new OrderAdminCustomerResponse(
+        user.getId(),
+        user.getEmail(),
+        user.getFirstName(),
+        user.getLastName(),
+        user.getPhone(),
+        addressDtos,
+        shippingSnapshot);
+  }
+
   private void ensureEditable(CustomerOrder order) {
     OrderStatus status = order.getStatus();
     if (status != OrderStatus.CREATED
@@ -617,6 +825,7 @@ public class OrderAdminServiceImpl implements OrderAdminService {
 
   private Specification<CustomerOrder> buildSpecification(OrderFilterRequest filters) {
     List<Specification<CustomerOrder>> specs = new ArrayList<>();
+    ZoneId zone = ZoneId.of("America/Montevideo");
 
     if (filters.getStatus() != null) {
       specs.add((root, query, cb) -> cb.equal(root.get("status"), filters.getStatus()));
@@ -638,20 +847,28 @@ public class OrderAdminServiceImpl implements OrderAdminService {
                   "%" + filters.getAssignedChefEmail().toLowerCase() + "%"));
     }
 
+    if (filters.getFulfillment() != null) {
+      specs.add((root, query, cb) -> cb.equal(root.get("fulfillment"), filters.getFulfillment()));
+    }
+
     if (filters.getCreatedAfter() != null) {
-      Instant start =
-          filters.getCreatedAfter().atStartOfDay(ZoneId.of("America/Montevideo")).toInstant();
+      Instant start = filters.getCreatedAfter().atStartOfDay(zone).toInstant();
       specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), start));
     }
 
     if (filters.getCreatedBefore() != null) {
-      Instant end =
-          filters
-              .getCreatedBefore()
-              .plusDays(1)
-              .atStartOfDay(ZoneId.of("America/Montevideo"))
-              .toInstant();
+      Instant end = filters.getCreatedBefore().plusDays(1).atStartOfDay(zone).toInstant();
       specs.add((root, query, cb) -> cb.lessThan(root.get("createdAt"), end));
+    }
+
+    if (filters.getRequestedAfter() != null) {
+      Instant start = filters.getRequestedAfter().atStartOfDay(zone).toInstant();
+      specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("requestedAt"), start));
+    }
+
+    if (filters.getRequestedBefore() != null) {
+      Instant end = filters.getRequestedBefore().plusDays(1).atStartOfDay(zone).toInstant();
+      specs.add((root, query, cb) -> cb.lessThan(root.get("requestedAt"), end));
     }
 
     if (filters.getMinAmount() != null) {
@@ -666,6 +883,55 @@ public class OrderAdminServiceImpl implements OrderAdminService {
               cb.lessThanOrEqualTo(root.get("totalAmount"), filters.getMaxAmount()));
     }
 
+    String q = filters.getQ();
+    if (q != null) {
+      String trimmed = q.trim();
+      if (!trimmed.isEmpty()) {
+        String normalized = trimmed.toLowerCase();
+        String likeValue = "%" + normalized + "%";
+
+        specs.add(
+            (root, query, cb) -> {
+              List<Predicate> orPredicates = new ArrayList<>();
+              orPredicates.add(cb.like(cb.lower(root.get("user").get("email")), likeValue));
+              orPredicates.add(cb.like(cb.lower(root.get("notes")), likeValue));
+              orPredicates.add(cb.like(cb.lower(root.get("shipName")), likeValue));
+              orPredicates.add(cb.like(cb.lower(root.get("shipPhone")), likeValue));
+              orPredicates.add(cb.like(cb.lower(root.get("shipLine1")), likeValue));
+              orPredicates.add(cb.like(cb.lower(root.get("shipCity")), likeValue));
+              orPredicates.add(cb.like(cb.lower(root.get("shipReference")), likeValue));
+
+              if (normalized.matches("\\d+")) {
+                try {
+                  Long orderId = Long.valueOf(normalized);
+                  orPredicates.add(cb.equal(root.get("id"), orderId));
+                } catch (NumberFormatException ignored) {
+                  // ignore invalid numeric overflow
+                }
+              }
+
+              return cb.or(orPredicates.toArray(new Predicate[0]));
+            });
+      }
+    }
+
+    if (filters.getProductId() != null || filters.getProductVariantId() != null) {
+      specs.add(
+          (root, query, cb) -> {
+            query.distinct(true);
+            Join<CustomerOrder, OrderItem> items = root.join("items", JoinType.INNER);
+            List<Predicate> predicates = new ArrayList<>();
+            if (filters.getProductId() != null) {
+              predicates.add(cb.equal(items.get("product").get("id"), filters.getProductId()));
+            }
+            if (filters.getProductVariantId() != null) {
+              predicates.add(
+                  cb.equal(items.get("productVariant").get("id"), filters.getProductVariantId()));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+          });
+    }
+
     // Por defecto NO mostrar eliminadas
     if (filters.getIncludeDeleted() == null || !filters.getIncludeDeleted()) {
       specs.add((root, query, cb) -> cb.isNull(root.get("deletedAt")));
@@ -676,6 +942,208 @@ public class OrderAdminServiceImpl implements OrderAdminService {
       return null;
     }
     return specs.stream().reduce(Specification::and).orElse(null);
+  }
+
+  private BigDecimal applyModifiersAndPricing(
+      OrderItem item, ProductVariant variant, List<OrderItemModifierRequest> modifierRequests) {
+    int itemQuantity = item.getQuantity() != null ? item.getQuantity() : 1;
+
+    List<ModifierGroup> groups =
+        modifierGroupRepository.findByProductVariant_IdAndActiveTrueOrderBySortOrderAscIdAsc(
+            variant.getId());
+
+    Map<Long, ModifierGroup> groupById = new HashMap<>();
+    Map<Long, ModifierOption> optionById = new HashMap<>();
+    for (ModifierGroup g : groups) {
+      groupById.put(g.getId(), g);
+      if (g.getOptions() != null) {
+        g.getOptions().stream()
+            .filter(ModifierOption::isActive)
+            .forEach(opt -> optionById.put(opt.getId(), opt));
+      }
+    }
+
+    if (groups.isEmpty() && modifierRequests != null && !modifierRequests.isEmpty()) {
+      throw new BadRequestException(
+          "MODIFIER_NOT_ALLOWED", "El producto/variante no admite modificadores.");
+    }
+
+    record SelectedOption(ModifierOption option, int quantity) {}
+
+    Map<ModifierGroup, List<SelectedOption>> selections = new HashMap<>();
+    if (modifierRequests != null) {
+      for (var modReq : modifierRequests) {
+        ModifierOption option = optionById.get(modReq.modifierOptionId());
+        if (option == null) {
+          throw new BadRequestException(
+              "MODIFIER_OPTION_INVALID", "La opción de modificador indicada no es válida.");
+        }
+        ModifierGroup group = option.getModifierGroup();
+        selections
+            .computeIfAbsent(group, g -> new ArrayList<>())
+            .add(new SelectedOption(option, modReq.quantity() == null ? 1 : modReq.quantity()));
+      }
+    }
+
+    for (ModifierGroup group : groups) {
+      boolean hasSelection = selections.containsKey(group) && !selections.get(group).isEmpty();
+      if (!hasSelection
+          && group.getDefaultOption() != null
+          && group.getDefaultOption().isActive()) {
+        int defaultQty =
+            group.getSelectionMode() == ModifierSelectionMode.QTY
+                    && group.getRequiredTotalQty() != null
+                ? group.getRequiredTotalQty()
+                : 1;
+        selections
+            .computeIfAbsent(group, g -> new ArrayList<>())
+            .add(new SelectedOption(group.getDefaultOption(), defaultQty));
+      }
+    }
+
+    BigDecimal modifiersTotal = BigDecimal.ZERO;
+
+    for (ModifierGroup group : groups) {
+      List<SelectedOption> selected = selections.getOrDefault(group, List.of());
+      int optionCount = selected.size();
+      int totalQty = selected.stream().mapToInt(SelectedOption::quantity).sum();
+
+      if (group.getMinSelect() > 0 && optionCount < group.getMinSelect()) {
+        throw new BadRequestException(
+            "MODIFIER_MIN_SELECT",
+            String.format(
+                "El grupo %s requiere al menos %d opción(es).",
+                group.getName(), group.getMinSelect()));
+      }
+      if (group.getMaxSelect() > 0 && optionCount > group.getMaxSelect()) {
+        throw new BadRequestException(
+            "MODIFIER_MAX_SELECT",
+            String.format(
+                "El grupo %s permite como máximo %d opción(es).",
+                group.getName(), group.getMaxSelect()));
+      }
+
+      boolean hasExclusive = selected.stream().anyMatch(sel -> sel.option().isExclusive());
+      if (hasExclusive && optionCount > 1) {
+        throw new BadRequestException(
+            "MODIFIER_EXCLUSIVE",
+            String.format(
+                "La opción exclusiva en %s no puede combinarse con otras.", group.getName()));
+      }
+
+      switch (group.getSelectionMode()) {
+        case SINGLE -> {
+          if (optionCount > 1) {
+            throw new BadRequestException(
+                "MODIFIER_SINGLE",
+                String.format("El grupo %s solo permite una opción.", group.getName()));
+          }
+          if (selected.stream().anyMatch(sel -> sel.quantity() != 1)) {
+            throw new BadRequestException(
+                "MODIFIER_SINGLE_QTY",
+                String.format("El grupo %s admite cantidad 1 por opción.", group.getName()));
+          }
+        }
+        case MULTI -> {
+          if (selected.stream().anyMatch(sel -> sel.quantity() != 1)) {
+            throw new BadRequestException(
+                "MODIFIER_MULTI_QTY",
+                String.format("El grupo %s solo admite cantidad 1 por opción.", group.getName()));
+          }
+        }
+        case QTY -> {
+          if (group.getRequiredTotalQty() != null && totalQty != group.getRequiredTotalQty()) {
+            throw new BadRequestException(
+                "MODIFIER_REQUIRED_TOTAL",
+                String.format(
+                    "El grupo %s requiere un total de %d unidades.",
+                    group.getName(), group.getRequiredTotalQty()));
+          }
+        }
+        default -> {}
+      }
+
+      for (SelectedOption sel : selected) {
+        ModifierOption option = sel.option();
+        int requestedQty = sel.quantity();
+        if (requestedQty <= 0) {
+          throw new BadRequestException(
+              "MODIFIER_QTY_INVALID", "La cantidad del modificador debe ser mayor a 0.");
+        }
+
+        BigDecimal optionUnitPrice = null;
+        BigDecimal priceDelta = option.getPriceDelta();
+        BigDecimal optionTotal = BigDecimal.ZERO;
+
+        if (priceDelta != null) {
+          optionTotal =
+              priceDelta
+                  .multiply(BigDecimal.valueOf(requestedQty))
+                  .multiply(BigDecimal.valueOf(itemQuantity))
+                  .setScale(2, RoundingMode.HALF_UP);
+        }
+
+        if (option.getLinkedProductVariant() != null) {
+          ProductVariant linkedVariant =
+              productVariantRepository
+                  .findByIdForUpdate(option.getLinkedProductVariant().getId())
+                  .orElseThrow(
+                      () ->
+                          new NotFoundException(
+                              "LINKED_VARIANT_NOT_FOUND", "Variante linkeada no encontrada."));
+
+          BigDecimal linkedPrice =
+              priceQueryPort
+                  .findActivePriceByVariantId(linkedVariant.getId())
+                  .orElseThrow(
+                      () ->
+                          new BadRequestException(
+                              "LINKED_PRICE_NOT_FOUND",
+                              "No hay precio vigente para la variante de modificador."));
+          optionUnitPrice = linkedPrice.setScale(2, RoundingMode.HALF_UP);
+          BigDecimal linkedTotal =
+              optionUnitPrice
+                  .multiply(BigDecimal.valueOf(requestedQty))
+                  .multiply(BigDecimal.valueOf(itemQuantity))
+                  .setScale(2, RoundingMode.HALF_UP);
+          optionTotal = optionTotal.add(linkedTotal);
+
+          checkAndConsumeStock(linkedVariant, requestedQty * itemQuantity);
+        }
+
+        modifiersTotal = modifiersTotal.add(optionTotal);
+
+        OrderItemModifier modifierEntity =
+            OrderItemModifier.builder()
+                .orderItem(item)
+                .modifierOption(option)
+                .quantity(requestedQty)
+                .optionNameSnapshot(option.getName())
+                .priceDeltaSnapshot(priceDelta)
+                .unitPriceSnapshot(optionUnitPrice)
+                .totalPriceSnapshot(optionTotal)
+                .linkedProductVariantIdSnapshot(
+                    option.getLinkedProductVariant() != null
+                        ? option.getLinkedProductVariant().getId()
+                        : null)
+                .build();
+        item.getModifiers().add(modifierEntity);
+      }
+    }
+
+    return modifiersTotal.setScale(2, RoundingMode.HALF_UP);
+  }
+
+  private void checkAndConsumeStock(ProductVariant variant, int requiredQty) {
+    if (variant == null || !variant.isManagesStock()) return;
+    if (variant.getStockQuantity() < requiredQty) {
+      throw new BadRequestException(
+          "OUT_OF_STOCK",
+          String.format(
+              "No hay stock suficiente para la variante %s (solicitado %d, disponible %d)",
+              variant.getName(), requiredQty, variant.getStockQuantity()));
+    }
+    variant.setStockQuantity(variant.getStockQuantity() - requiredQty);
   }
 
   private boolean isBlank(String s) {

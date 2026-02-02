@@ -3,6 +3,8 @@ package com.cocinadelicia.backend.catalog.mapper;
 import com.cocinadelicia.backend.catalog.dto.*;
 import com.cocinadelicia.backend.common.s3.CdnUrlBuilder;
 import com.cocinadelicia.backend.product.model.Category;
+import com.cocinadelicia.backend.product.model.ModifierGroup;
+import com.cocinadelicia.backend.product.model.ModifierOption;
 import com.cocinadelicia.backend.product.model.Product;
 import com.cocinadelicia.backend.product.model.ProductImage;
 import com.cocinadelicia.backend.product.model.ProductVariant;
@@ -54,9 +56,9 @@ public class ProductCatalogMapper {
         !variants.isEmpty() ? variants.stream().allMatch(v -> !v.managesStock()) : true;
     boolean available = product.isActive() && (variants.isEmpty() || hasAvailableVariant);
 
-    boolean featured = activeVariants.stream().anyMatch(ProductVariant::isFeatured);
-    boolean dailyMenu = activeVariants.stream().anyMatch(ProductVariant::isDailyMenu);
-    boolean isNew = activeVariants.stream().anyMatch(ProductVariant::isNew);
+    boolean featured = product.isFeatured();
+    boolean dailyMenu = product.isDailyMenu();
+    boolean isNew = product.isNew();
 
     List<String> tagSlugs = mapTags(product.getTags());
 
@@ -99,9 +101,11 @@ public class ProductCatalogMapper {
         !variants.isEmpty() ? variants.stream().allMatch(v -> !v.managesStock()) : true;
     boolean available = product.isActive() && (variants.isEmpty() || hasAvailableVariant);
 
-    boolean featured = activeVariants.stream().anyMatch(ProductVariant::isFeatured);
-    boolean dailyMenu = activeVariants.stream().anyMatch(ProductVariant::isDailyMenu);
-    boolean isNew = activeVariants.stream().anyMatch(ProductVariant::isNew);
+    boolean featured = product.isFeatured();
+    boolean dailyMenu = product.isDailyMenu();
+    boolean isNew = product.isNew();
+
+    List<ModifierGroupCatalogResponse> modifierGroups = mapModifierGroups(activeVariants);
 
     return new ProductDetailResponse(
         product.getId(),
@@ -122,7 +126,8 @@ public class ProductCatalogMapper {
         isNew,
         available,
         managesStock,
-        madeToOrder);
+        madeToOrder,
+        modifierGroups);
   }
 
   private MoneyResponse computeFromPrice(List<CatalogVariantResponse> variants) {
@@ -216,6 +221,51 @@ public class ProductCatalogMapper {
 
   private List<String> mapTags(Set<Tag> tags) {
     return tags == null ? List.of() : tags.stream().map(Tag::getSlug).sorted().toList();
+  }
+
+  private List<ModifierGroupCatalogResponse> mapModifierGroups(List<ProductVariant> variants) {
+    return variants.stream()
+        .filter(v -> v.getModifierGroups() != null)
+        .flatMap(v -> v.getModifierGroups().stream().map(g -> toModifierGroupResponse(v, g)))
+        .filter(Objects::nonNull)
+        .toList();
+  }
+
+  private ModifierGroupCatalogResponse toModifierGroupResponse(
+      ProductVariant variant, ModifierGroup group) {
+    if (group.getOptions() == null) return null;
+    List<ModifierOptionCatalogResponse> options =
+        group.getOptions().stream()
+            .filter(ModifierOption::isActive)
+            .sorted(
+                Comparator.comparingInt(ModifierOption::getSortOrder)
+                    .thenComparingLong(ModifierOption::getId))
+            .map(this::toModifierOptionResponse)
+            .toList();
+
+    return new ModifierGroupCatalogResponse(
+        group.getId(),
+        variant.getId(),
+        group.getName(),
+        group.getMinSelect(),
+        group.getMaxSelect(),
+        group.getSelectionMode().name(),
+        group.getRequiredTotalQty(),
+        group.getDefaultOption() != null ? group.getDefaultOption().getId() : null,
+        group.getSortOrder(),
+        group.isActive(),
+        options);
+  }
+
+  private ModifierOptionCatalogResponse toModifierOptionResponse(ModifierOption option) {
+    return new ModifierOptionCatalogResponse(
+        option.getId(),
+        option.getName(),
+        option.getSortOrder(),
+        option.getPriceDelta(),
+        option.getLinkedProductVariant() != null ? option.getLinkedProductVariant().getId() : null,
+        option.isExclusive(),
+        option.isActive());
   }
 
   private String toPublicUrl(String objectKey) {

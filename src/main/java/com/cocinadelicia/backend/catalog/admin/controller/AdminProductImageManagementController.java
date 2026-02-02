@@ -5,6 +5,7 @@ import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminRequest;
 import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminResponse;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductImageService;
 import jakarta.validation.Valid;
+import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +26,9 @@ public class AdminProductImageManagementController {
   @PostMapping("/products/{productId}/images")
   public ResponseEntity<ProductImageAdminResponse> add(
       @PathVariable long productId, @Valid @RequestBody ProductImageAdminRequest body) {
-    return ResponseEntity.ok(service.addToProduct(productId, body));
+    ProductImageAdminResponse created = service.addToProduct(productId, body);
+    return ResponseEntity.created(URI.create("/api/admin/catalog/images/" + created.id()))
+        .body(created);
   }
 
   @PatchMapping("/images/{imageId}")

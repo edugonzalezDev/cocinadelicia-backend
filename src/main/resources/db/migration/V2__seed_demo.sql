@@ -1282,11 +1282,11 @@ UPDATE product_variant SET is_new       = TRUE WHERE id IN (7, 8);
 -- 12) Sync de identidades (H2)
 -- ===============================
 -- Ajusta los IDENTITY para que los próximos inserts sin ID no choquen
-ALTER TABLE category          ALTER COLUMN id RESTART WITH 6;
-ALTER TABLE tag               ALTER COLUMN id RESTART WITH 5;
-ALTER TABLE product           ALTER COLUMN id RESTART WITH 7;
-ALTER TABLE product_variant   ALTER COLUMN id RESTART WITH 9;
-ALTER TABLE price_history     ALTER COLUMN id RESTART WITH 9;
+ALTER TABLE category          ALTER COLUMN id RESTART WITH 13;
+ALTER TABLE tag               ALTER COLUMN id RESTART WITH 9;
+ALTER TABLE product           ALTER COLUMN id RESTART WITH 330;
+ALTER TABLE product_variant   ALTER COLUMN id RESTART WITH 330;
+ALTER TABLE price_history     ALTER COLUMN id RESTART WITH 328;
 ALTER TABLE app_user          ALTER COLUMN id RESTART WITH 7;
 ALTER TABLE role              ALTER COLUMN id RESTART WITH 5;
 ALTER TABLE customer_address  ALTER COLUMN id RESTART WITH 6;

@@ -1,8 +1,10 @@
 package com.cocinadelicia.backend.order.admin.mapper;
 
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
+import com.cocinadelicia.backend.order.dto.OrderItemModifierResponse;
 import com.cocinadelicia.backend.order.dto.OrderItemResponse;
 import com.cocinadelicia.backend.order.model.CustomerOrder;
+import com.cocinadelicia.backend.order.model.OrderItemModifier;
 import com.cocinadelicia.backend.order.model.OrderStatusHistory;
 import java.util.List;
 
@@ -50,8 +52,13 @@ public final class OrderAdminMapper {
         historyDtos);
   }
 
-  private static OrderItemResponse toItemResponse(
+  public static OrderItemResponse toItemResponse(
       com.cocinadelicia.backend.order.model.OrderItem item) {
+    List<OrderItemModifierResponse> modifierResponses =
+        item.getModifiers() == null
+            ? List.of()
+            : item.getModifiers().stream().map(OrderAdminMapper::toModifierResponse).toList();
+
     return new OrderItemResponse(
         item.getId(),
         item.getProduct().getId(),
@@ -60,7 +67,20 @@ public final class OrderAdminMapper {
         item.getVariantName(),
         item.getUnitPrice(),
         item.getQuantity(),
-        item.getLineTotal());
+        item.getLineTotal(),
+        modifierResponses);
+  }
+
+  private static OrderItemModifierResponse toModifierResponse(OrderItemModifier m) {
+    return new OrderItemModifierResponse(
+        m.getId(),
+        m.getModifierOption().getId(),
+        m.getOptionNameSnapshot(),
+        m.getQuantity(),
+        m.getPriceDeltaSnapshot(),
+        m.getUnitPriceSnapshot(),
+        m.getTotalPriceSnapshot(),
+        m.getLinkedProductVariantIdSnapshot());
   }
 
   private static OrderAdminResponse.StatusHistoryEntry toHistoryEntry(OrderStatusHistory history) {

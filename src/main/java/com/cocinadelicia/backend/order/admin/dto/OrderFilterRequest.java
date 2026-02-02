@@ -1,7 +1,9 @@
 package com.cocinadelicia.backend.order.admin.dto;
 
+import com.cocinadelicia.backend.common.model.enums.FulfillmentType;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import lombok.*;
@@ -28,6 +30,26 @@ public class OrderFilterRequest {
 
   @Schema(description = "Filtrar por email de chef asignado", example = "chef@example.com")
   private String assignedChefEmail;
+
+  @Schema(description = "Filtrar por tipo de entrega", example = "DELIVERY")
+  private FulfillmentType fulfillment;
+
+  @Schema(
+      description = "Texto libre para buscar por id, notas o datos de envío",
+      example = "gluten")
+  @Size(max = 200) private String q;
+
+  @Schema(description = "Fecha solicitada desde (inclusive)", example = "2026-02-01")
+  private LocalDate requestedAfter;
+
+  @Schema(description = "Fecha solicitada hasta (inclusive)", example = "2026-02-10")
+  private LocalDate requestedBefore;
+
+  @Schema(description = "Filtrar por id de producto", example = "1001")
+  private Long productId;
+
+  @Schema(description = "Filtrar por id de variante", example = "2001")
+  private Long productVariantId;
 
   @Schema(description = "Monto mínimo", example = "100.00")
   private BigDecimal minAmount;

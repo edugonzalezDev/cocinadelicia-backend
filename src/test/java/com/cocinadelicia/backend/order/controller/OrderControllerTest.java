@@ -12,6 +12,7 @@ import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.model.enums.CurrencyCode;
 import com.cocinadelicia.backend.common.model.enums.FulfillmentType;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
+import com.cocinadelicia.backend.order.domain.OrderOwnershipValidator;
 import com.cocinadelicia.backend.order.dto.OrderItemResponse;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
 import com.cocinadelicia.backend.order.dto.UpdateOrderStatusRequest;
@@ -29,6 +30,7 @@ import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -51,6 +53,7 @@ class OrderControllerTest {
   @Autowired OrderService orderService;
   @Autowired UserService userService;
   @Autowired CurrentUserService currentUserService;
+  @MockitoBean OrderOwnershipValidator orderOwnershipValidator;
 
   @TestConfiguration
   static class MockConfig {

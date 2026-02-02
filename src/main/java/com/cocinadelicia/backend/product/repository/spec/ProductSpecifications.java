@@ -38,48 +38,15 @@ public class ProductSpecifications {
   }
 
   public static Specification<Product> hasFeaturedVariant() {
-    return (root, query, cb) -> {
-      Subquery<Long> subquery = query.subquery(Long.class);
-      Root<ProductVariant> variantRoot = subquery.from(ProductVariant.class);
-      subquery.select(variantRoot.get("product").get("id"));
-      subquery.where(
-          cb.and(
-              cb.equal(variantRoot.get("product").get("id"), root.get("id")),
-              cb.isTrue(variantRoot.get("featured")),
-              cb.isTrue(variantRoot.get("isActive"))));
-
-      return cb.exists(subquery);
-    };
+    return (root, query, cb) -> cb.isTrue(root.get("featured"));
   }
 
   public static Specification<Product> hasDailyMenuVariant() {
-    return (root, query, cb) -> {
-      Subquery<Long> subquery = query.subquery(Long.class);
-      Root<ProductVariant> variantRoot = subquery.from(ProductVariant.class);
-      subquery.select(variantRoot.get("product").get("id"));
-      subquery.where(
-          cb.and(
-              cb.equal(variantRoot.get("product").get("id"), root.get("id")),
-              cb.isTrue(variantRoot.get("dailyMenu")),
-              cb.isTrue(variantRoot.get("isActive"))));
-
-      return cb.exists(subquery);
-    };
+    return (root, query, cb) -> cb.isTrue(root.get("dailyMenu"));
   }
 
   public static Specification<Product> hasNewVariant() {
-    return (root, query, cb) -> {
-      Subquery<Long> subquery = query.subquery(Long.class);
-      Root<ProductVariant> variantRoot = subquery.from(ProductVariant.class);
-      subquery.select(variantRoot.get("product").get("id"));
-      subquery.where(
-          cb.and(
-              cb.equal(variantRoot.get("product").get("id"), root.get("id")),
-              cb.isTrue(variantRoot.get("isNew")),
-              cb.isTrue(variantRoot.get("isActive"))));
-
-      return cb.exists(subquery);
-    };
+    return (root, query, cb) -> cb.isTrue(root.get("isNew"));
   }
 
   public static Specification<Product> hasAvailableVariant() {

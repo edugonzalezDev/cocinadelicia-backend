@@ -1,30 +1,39 @@
 package com.cocinadelicia.backend.catalog.admin.controller;
 
 import com.cocinadelicia.backend.catalog.admin.service.AdminCategoryService;
+import com.cocinadelicia.backend.catalog.admin.service.AdminModifierGroupService;
+import com.cocinadelicia.backend.catalog.admin.service.AdminModifierOptionService;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductService;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductVariantService;
 import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.product.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin/catalog")
 @RequiredArgsConstructor
 @Tag(name = "admin-catalog", description = "Administración de catálogo (solo ADMIN)")
+@SecurityRequirement(name = "bearer-jwt")
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminCatalogController {
 
   private final AdminCategoryService categoryService;
   private final AdminProductService productService;
   private final AdminProductVariantService variantService;
+  private final AdminModifierGroupService modifierGroupService;
+  private final AdminModifierOptionService modifierOptionService;
 
   // ---------- Categorías ----------
 
@@ -67,11 +76,15 @@ public class AdminCatalogController {
   @GetMapping("/products")
   public ResponseEntity<PageResponse<ProductAdminResponse>> getProducts(
       @RequestParam(name = "categoryId", required = false) Long categoryId,
-      @RequestParam(name = "active", required = false) Boolean isActive,
-      @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
+      @RequestParam(name = "isActive", required = false) Boolean isActive,
+      @RequestParam(name = "active", required = false) Boolean active,
+      @ParameterObject
+          @PageableDefault(size = 20, sort = "updatedAt", direction = Sort.Direction.DESC)
+          Pageable pageable) {
 
+    Boolean resolvedIsActive = isActive != null ? isActive : active;
     PageResponse<ProductAdminResponse> page =
-        productService.getProducts(categoryId, isActive, pageable);
+        productService.getProducts(categoryId, resolvedIsActive, pageable);
     return ResponseEntity.ok(page);
   }
 
@@ -133,10 +146,40 @@ public class AdminCatalogController {
     return ResponseEntity.ok(variantService.update(id, request));
   }
 
+  @Operation(summary = "Actualizar precio vigente de una variante (admin)")
+  @PutMapping("/variants/{id}/price")
+  public ResponseEntity<ProductVariantAdminResponse> updateVariantPrice(
+      @PathVariable Long id, @Valid @RequestBody ProductVariantPriceUpdateRequest request) {
+    return ResponseEntity.ok(variantService.updateActivePrice(id, request));
+  }
+
   @Operation(summary = "Eliminar variante (admin)")
   @DeleteMapping("/variants/{id}")
   public ResponseEntity<Void> deleteVariant(@PathVariable Long id) {
     variantService.delete(id);
     return ResponseEntity.noContent().build();
+  }
+
+  // ---------- Grupos de Modificadores ----------
+
+  @Operation(summary = "Listar grupos de modificadores de un producto (todas sus variantes)")
+  @GetMapping("/products/{productId}/modifier-groups")
+  public ResponseEntity<List<ModifierGroupAdminResponse>> getModifierGroupsByProduct(
+      @PathVariable Long productId) {
+    return ResponseEntity.ok(modifierGroupService.getByProduct(productId));
+  }
+
+  @Operation(summary = "Crear grupo de modificadores para un producto")
+  @PostMapping("/products/{productId}/modifier-groups")
+  public ResponseEntity<ModifierGroupAdminResponse> createModifierGroupForProduct(
+      @PathVariable Long productId, @Valid @RequestBody ModifierGroupAdminRequest request) {
+    return ResponseEntity.ok(modifierGroupService.createForProduct(productId, request));
+  }
+
+  @Operation(summary = "Crear opción de modificador (ruta compatibilidad FE)")
+  @PostMapping("/modifier-groups/{groupId}/options")
+  public ResponseEntity<ModifierOptionAdminResponse> createModifierOptionForGroup(
+      @PathVariable Long groupId, @Valid @RequestBody ModifierOptionAdminRequest request) {
+    return ResponseEntity.ok(modifierOptionService.create(groupId, request));
   }
 }

@@ -2,6 +2,8 @@ package com.cocinadelicia.backend.order.admin.service;
 
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
 import com.cocinadelicia.backend.order.admin.dto.CreateOrderAdminRequest;
+import com.cocinadelicia.backend.order.admin.dto.OrderAdminCustomerResponse;
+import com.cocinadelicia.backend.order.admin.dto.OrderAdminDetailsResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderFilterRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderStatsResponse;
@@ -22,6 +24,9 @@ public interface OrderAdminService {
   /** Obtiene detalle completo de una orden (incluye datos sensibles). */
   OrderAdminResponse getOrderById(Long id);
 
+  /** Obtiene detalle para el modal de admin. */
+  OrderAdminDetailsResponse getOrderDetails(Long id);
+
   /** Actualiza el estado de una orden (Admin puede hacer cualquier transición válida). */
   OrderAdminResponse updateStatus(Long orderId, OrderStatus newStatus, String reason);
 
@@ -30,6 +35,9 @@ public interface OrderAdminService {
 
   /** Elimina una orden (soft delete). */
   void deleteOrder(Long orderId);
+
+  /** Obtiene datos del cliente asociados a una orden. */
+  OrderAdminCustomerResponse getOrderCustomer(Long orderId);
 
   /** Obtiene estadísticas de órdenes para dashboard. */
   OrderStatsResponse getStats();

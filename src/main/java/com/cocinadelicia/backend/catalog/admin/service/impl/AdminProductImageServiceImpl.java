@@ -4,6 +4,7 @@ import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminPatchRequest
 import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminRequest;
 import com.cocinadelicia.backend.catalog.admin.dto.ProductImageAdminResponse;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductImageService;
+import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.s3.CdnUrlBuilder;
 import com.cocinadelicia.backend.product.model.Product;
@@ -56,7 +57,8 @@ public class AdminProductImageServiceImpl implements AdminProductImageService {
     // (opcional pero recomendado) asegurar que la key pertenezca al producto
     String expectedPrefix = "products/" + productId + "/";
     if (req.objectKey() == null || !req.objectKey().startsWith(expectedPrefix)) {
-      throw new IllegalArgumentException("objectKey inválida. Debe empezar con: " + expectedPrefix);
+      throw new BadRequestException(
+          "INVALID_OBJECT_KEY", "objectKey inválida. Debe empezar con: " + expectedPrefix);
     }
 
     boolean hasMain = productImageRepository.existsByProduct_IdAndIsMainTrue(productId);
@@ -75,6 +77,7 @@ public class AdminProductImageServiceImpl implements AdminProductImageService {
       for (var img : current) {
         if (img.isMain()) img.setMain(false);
       }
+      productImageRepository.saveAll(current);
     }
 
     ProductImage entity =
@@ -105,19 +108,40 @@ public class AdminProductImageServiceImpl implements AdminProductImageService {
 
     long productId = img.getProduct().getId();
 
-    if (req.sortOrder() != null) {
-      img.setSortOrder(Math.max(0, req.sortOrder()));
-    }
+    if (req.sortOrder() != null) img.setSortOrder(Math.max(0, req.sortOrder()));
 
-    if (Boolean.TRUE.equals(req.isMain())) {
-      // ✅ swap principal
-      var all = productImageRepository.findByProduct_IdOrderBySortOrderAscCreatedAtAsc(productId);
-      for (var it : all) {
-        it.setMain(it.getId().equals(img.getId()));
+    boolean needsSaveAll = false;
+    List<ProductImage> all = null;
+
+    if (req.isMain() != null) {
+      all = productImageRepository.findByProduct_IdOrderBySortOrderAscCreatedAtAsc(productId);
+      if (Boolean.TRUE.equals(req.isMain())) {
+        // ✅ swap principal
+        for (var it : all) {
+          it.setMain(it.getId().equals(img.getId()));
+        }
+        needsSaveAll = true;
+      } else if (img.isMain()) {
+        // no se permite quedar sin principal si hay otras imágenes
+        ProductImage replacement =
+            all.stream().filter(it -> !it.getId().equals(img.getId())).findFirst().orElse(null);
+        if (replacement != null) {
+          for (var it : all) {
+            it.setMain(it.getId().equals(replacement.getId()));
+          }
+          needsSaveAll = true;
+        } else {
+          img.setMain(true);
+        }
       }
     }
 
-    ProductImage saved = productImageRepository.save(img);
+    if (needsSaveAll) {
+      productImageRepository.saveAll(all);
+    } else {
+      productImageRepository.save(img);
+    }
+    ProductImage saved = img;
     return toDto(saved);
   }
 

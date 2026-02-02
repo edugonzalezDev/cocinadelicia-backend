@@ -38,6 +38,31 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
   Optional<PriceHistory> findActivePriceEntry(
       @Param("variantId") Long variantId, @Param("now") Instant now);
 
+  @Query(
+      """
+      select ph
+      from PriceHistory ph
+      where ph.productVariant.id = :variantId
+        and ph.validTo is null
+      order by ph.validFrom desc
+      """)
+  Optional<PriceHistory> findActivePriceByVariantId(@Param("variantId") Long variantId);
+
+  @Query(
+      value =
+          """
+          select *
+          from price_history
+          where product_variant_id = :variantId
+            and valid_to is null
+            and deleted_at is null
+          order by valid_from desc
+          limit 1
+          for update
+          """,
+      nativeQuery = true)
+  Optional<PriceHistory> findActivePriceEntryForUpdate(@Param("variantId") Long variantId);
+
   /**
    * Query batch optimizada para obtener precios actuales de múltiples variantes. Reduce N+1 queries
    * a una sola consulta.

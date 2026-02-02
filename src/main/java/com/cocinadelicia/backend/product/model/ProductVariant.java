@@ -68,6 +68,11 @@ public class ProductVariant extends BaseAudit {
   @Builder.Default
   private List<PriceHistory> priceHistory = new ArrayList<>();
 
+  @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
+  @BatchSize(size = 50)
+  @Builder.Default
+  private List<ModifierGroup> modifierGroups = new ArrayList<>();
+
   // Helper opcional para disponibilidad a nivel dominio
   @Transient
   public boolean isAvailable() {

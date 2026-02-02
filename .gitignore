@@ -2,6 +2,7 @@ HELP.md
 target/
 backend-snippets/
 zips/
+structure_exports/
 *.zip
 generate_backend_snippets.sh
 .mvn/wrapper/maven-wrapper.jar

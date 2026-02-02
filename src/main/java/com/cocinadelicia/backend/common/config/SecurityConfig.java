@@ -18,7 +18,7 @@ import org.springframework.web.cors.*;
 
 @Configuration
 @EnableMethodSecurity
-class SecurityConfig {
+public class SecurityConfig {
 
   @Value("${cdd.security.groups-claim:cognito:groups}")
   private String groupsClaim;
@@ -30,6 +30,7 @@ class SecurityConfig {
   SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
     http.cors(cors -> {})
         .csrf(csrf -> csrf.disable())
+        .anonymous(anon -> anon.disable())
         .headers(h -> h.frameOptions(frame -> frame.sameOrigin())) // H2 en dev
         .authorizeHttpRequests(
             auth ->
@@ -51,8 +52,10 @@ class SecurityConfig {
                     // Admin-only
                     .requestMatchers("/admin/**")
                     .hasRole("ADMIN")
-                    // ⬇️ NUEVO: API admin de catálogo
+                    // API admin catálogo y resto de admin
                     .requestMatchers("/api/admin/catalog/**")
+                    .hasRole("ADMIN")
+                    .requestMatchers("/api/admin/**")
                     .hasRole("ADMIN")
 
                     // Chef o Admin

@@ -1,13 +1,18 @@
 package com.cocinadelicia.backend.order.admin.controller;
 
+import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
+import com.cocinadelicia.backend.order.admin.dto.AssignChefRequest;
 import com.cocinadelicia.backend.order.admin.dto.CreateOrderAdminRequest;
+import com.cocinadelicia.backend.order.admin.dto.OrderAdminCustomerResponse;
+import com.cocinadelicia.backend.order.admin.dto.OrderAdminDetailsResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderAdminResponse;
 import com.cocinadelicia.backend.order.admin.dto.OrderFilterRequest;
 import com.cocinadelicia.backend.order.admin.dto.OrderStatsResponse;
 import com.cocinadelicia.backend.order.admin.dto.UpdateOrderCustomerRequest;
 import com.cocinadelicia.backend.order.admin.dto.UpdateOrderDetailsRequest;
 import com.cocinadelicia.backend.order.admin.dto.UpdateOrderItemsRequest;
+import com.cocinadelicia.backend.order.admin.dto.UpdateOrderStatusAdminRequest;
 import com.cocinadelicia.backend.order.admin.service.OrderAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -72,6 +77,18 @@ public class OrderAdminController {
     return ResponseEntity.ok(orderAdminService.getOrderById(id));
   }
 
+  @GetMapping("/{id}/details")
+  @Operation(summary = "Obtener detalle para modal de admin")
+  public ResponseEntity<OrderAdminDetailsResponse> getOrderDetails(@PathVariable Long id) {
+    return ResponseEntity.ok(orderAdminService.getOrderDetails(id));
+  }
+
+  @GetMapping("/{id}/customer")
+  @Operation(summary = "Obtener datos del cliente y envío de la orden")
+  public ResponseEntity<OrderAdminCustomerResponse> getOrderCustomer(@PathVariable Long id) {
+    return ResponseEntity.ok(orderAdminService.getOrderCustomer(id));
+  }
+
   @PatchMapping("/{id}/status")
   @Operation(
       summary = "Actualizar estado de una orden",
@@ -79,10 +96,17 @@ public class OrderAdminController {
           "Permite cambiar el estado de una orden. Admin puede hacer cualquier transición válida.")
   public ResponseEntity<OrderAdminResponse> updateStatus(
       @PathVariable Long id,
-      @Parameter(description = "Nuevo estado", required = true) @RequestParam OrderStatus status,
-      @Parameter(description = "Razón del cambio (opcional)") @RequestParam(required = false)
+      @Valid @RequestBody(required = false) UpdateOrderStatusAdminRequest body,
+      @Parameter(description = "Nuevo estado (compatibilidad)") @RequestParam(required = false)
+          OrderStatus status,
+      @Parameter(description = "Razón del cambio (compatibilidad)") @RequestParam(required = false)
           String reason) {
-    return ResponseEntity.ok(orderAdminService.updateStatus(id, status, reason));
+    OrderStatus resolvedStatus = body != null ? body.status() : status;
+    String resolvedReason = body != null ? body.reason() : reason;
+    if (resolvedStatus == null) {
+      throw new BadRequestException("STATUS_REQUIRED", "El estado es obligatorio.");
+    }
+    return ResponseEntity.ok(orderAdminService.updateStatus(id, resolvedStatus, resolvedReason));
   }
 
   @PatchMapping("/{id}/assign-chef")
@@ -91,8 +115,11 @@ public class OrderAdminController {
       description = "Asigna un chef específico para preparar la orden")
   public ResponseEntity<OrderAdminResponse> assignChef(
       @PathVariable Long id,
-      @Parameter(description = "Email del chef", required = true) @RequestParam String chefEmail) {
-    return ResponseEntity.ok(orderAdminService.assignChef(id, chefEmail));
+      @Valid @RequestBody(required = false) AssignChefRequest body,
+      @Parameter(description = "Email del chef (compatibilidad)") @RequestParam(required = false)
+          String chefEmail) {
+    String resolvedChefEmail = body != null ? body.chefEmail() : chefEmail;
+    return ResponseEntity.ok(orderAdminService.assignChef(id, resolvedChefEmail));
   }
 
   @DeleteMapping("/{id}")

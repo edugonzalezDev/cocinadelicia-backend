@@ -50,6 +50,18 @@ public class Product extends BaseAudit {
   @Column(name = "is_active", nullable = false)
   private boolean isActive = true;
 
+  @Column(name = "is_featured", nullable = false)
+  @Builder.Default
+  private boolean featured = false;
+
+  @Column(name = "is_daily_menu", nullable = false)
+  @Builder.Default
+  private boolean dailyMenu = false;
+
+  @Column(name = "is_new", nullable = false)
+  @Builder.Default
+  private boolean isNew = false;
+
   @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
   @BatchSize(size = 20)
   @Builder.Default

@@ -3,13 +3,18 @@ package com.cocinadelicia.backend.catalog.admin.service.impl;
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductVariantService;
 import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
+import com.cocinadelicia.backend.common.model.enums.CurrencyCode;
 import com.cocinadelicia.backend.product.dto.ProductVariantAdminRequest;
 import com.cocinadelicia.backend.product.dto.ProductVariantAdminResponse;
+import com.cocinadelicia.backend.product.dto.ProductVariantPriceUpdateRequest;
 import com.cocinadelicia.backend.product.mapper.ProductVariantMapper;
+import com.cocinadelicia.backend.product.model.PriceHistory;
 import com.cocinadelicia.backend.product.model.Product;
 import com.cocinadelicia.backend.product.model.ProductVariant;
+import com.cocinadelicia.backend.product.repository.PriceHistoryRepository;
 import com.cocinadelicia.backend.product.repository.ProductRepository;
 import com.cocinadelicia.backend.product.repository.ProductVariantRepository;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -24,6 +29,7 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
 
   private final ProductVariantRepository variantRepository;
   private final ProductRepository productRepository;
+  private final PriceHistoryRepository priceHistoryRepository;
   private final ProductVariantMapper mapper;
 
   @Override
@@ -92,6 +98,42 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
     ProductVariant saved = variantRepository.save(variant);
     log.info("AdminVariant.update id={}", saved.getId());
     return mapper.toAdminResponse(saved);
+  }
+
+  @Override
+  public ProductVariantAdminResponse updateActivePrice(
+      Long id, ProductVariantPriceUpdateRequest request) {
+    ProductVariant variant =
+        variantRepository
+            .findByIdForUpdate(id)
+            .orElseThrow(
+                () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada: " + id));
+
+    Instant now = Instant.now();
+
+    priceHistoryRepository
+        .findActivePriceEntryForUpdate(id)
+        .ifPresent(
+            active -> {
+              active.setValidTo(now);
+              priceHistoryRepository.save(active);
+            });
+
+    CurrencyCode currency = request.currency() != null ? request.currency() : CurrencyCode.UYU;
+
+    PriceHistory newEntry =
+        PriceHistory.builder()
+            .productVariant(variant)
+            .price(request.price())
+            .currency(currency)
+            .validFrom(now)
+            .validTo(null)
+            .build();
+
+    priceHistoryRepository.save(newEntry);
+    log.info(
+        "AdminVariant.updateActivePrice id={} price={} currency={}", id, request.price(), currency);
+    return mapper.toAdminResponse(variant);
   }
 
   @Override

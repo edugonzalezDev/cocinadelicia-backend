@@ -1,6 +1,7 @@
 package com.cocinadelicia.backend.catalog.admin.service.impl;
 
 import com.cocinadelicia.backend.catalog.admin.service.AdminProductService;
+import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.product.dto.ProductAdminRequest;
@@ -61,13 +62,11 @@ public class AdminProductServiceImpl implements AdminProductService {
 
   @Override
   public ProductAdminResponse create(ProductAdminRequest request) {
-    Category category =
-        categoryRepository
-            .findById(request.categoryId())
-            .orElseThrow(
-                () ->
-                    new NotFoundException(
-                        "CATEGORY_NOT_FOUND", "Categoría no encontrada: " + request.categoryId()));
+    Category category = getCategoryOrBadRequest(request.categoryId());
+    String normalizedSlug = normalizeSlug(request.slug());
+    if (normalizedSlug != null && productRepository.existsBySlugIgnoreCase(normalizedSlug)) {
+      throw new BadRequestException("PRODUCT_SLUG_DUPLICATE", "Slug ya existe: " + normalizedSlug);
+    }
 
     Product product = mapper.toNewEntity(request, category);
     Product saved = productRepository.save(product);
@@ -83,16 +82,11 @@ public class AdminProductServiceImpl implements AdminProductService {
             .orElseThrow(
                 () -> new NotFoundException("PRODUCT_NOT_FOUND", "Producto no encontrado: " + id));
 
-    Category category = null;
-    if (request.categoryId() != null) {
-      category =
-          categoryRepository
-              .findById(request.categoryId())
-              .orElseThrow(
-                  () ->
-                      new NotFoundException(
-                          "CATEGORY_NOT_FOUND",
-                          "Categoría no encontrada: " + request.categoryId()));
+    Category category = getCategoryOrBadRequest(request.categoryId());
+    String normalizedSlug = normalizeSlug(request.slug());
+    if (normalizedSlug != null
+        && productRepository.existsBySlugIgnoreCaseAndIdNot(normalizedSlug, id)) {
+      throw new BadRequestException("PRODUCT_SLUG_DUPLICATE", "Slug ya existe: " + normalizedSlug);
     }
 
     mapper.updateEntityFromRequest(request, product, category);
@@ -105,5 +99,18 @@ public class AdminProductServiceImpl implements AdminProductService {
   public void delete(Long id) {
     productRepository.deleteById(id);
     log.info("AdminProduct.delete id={}", id);
+  }
+
+  private Category getCategoryOrBadRequest(Long categoryId) {
+    return categoryRepository
+        .findById(categoryId)
+        .orElseThrow(
+            () ->
+                new BadRequestException(
+                    "CATEGORY_NOT_FOUND", "Categoría no encontrada: " + categoryId));
+  }
+
+  private String normalizeSlug(String value) {
+    return value == null ? null : value.trim().toLowerCase();
   }
 }

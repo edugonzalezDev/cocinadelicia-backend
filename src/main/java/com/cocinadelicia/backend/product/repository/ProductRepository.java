@@ -24,6 +24,10 @@ public interface ProductRepository
 
   Page<Product> findByCategory_IdAndIsActive(Long categoryId, boolean isActive, Pageable pageable);
 
+  boolean existsBySlugIgnoreCase(String slug);
+
+  boolean existsBySlugIgnoreCaseAndIdNot(String slug, Long id);
+
   boolean existsByCategory_Id(Long categoryId);
 
   /**
@@ -64,6 +68,13 @@ public interface ProductRepository
       """)
   List<Product> findByIdsWithFetchJoins(@Param("ids") List<Long> ids);
 
-  @EntityGraph(attributePaths = {"category", "variants", "tags"})
+  @EntityGraph(
+      attributePaths = {
+        "category",
+        "variants",
+        "tags",
+        "variants.modifierGroups",
+        "variants.modifierGroups.options"
+      })
   Optional<Product> findBySlugIgnoreCaseAndIsActiveTrue(String slug);
 }

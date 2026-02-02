@@ -114,6 +114,7 @@ class CatalogDetailEndpointsTest {
         false,
         true,
         true,
-        false);
+        false,
+        List.of());
   }
 }

@@ -28,4 +28,6 @@ public record ProductDetailResponse(
     @Schema(description = "Indica si alguna variante maneja stock", example = "true")
         boolean managesStock,
     @Schema(description = "Indica si el producto es principalmente a pedido", example = "true")
-        boolean madeToOrder) {}
+        boolean madeToOrder,
+    @Schema(description = "Grupos de modificadores disponibles para las variantes")
+        List<ModifierGroupCatalogResponse> modifierGroups) {}

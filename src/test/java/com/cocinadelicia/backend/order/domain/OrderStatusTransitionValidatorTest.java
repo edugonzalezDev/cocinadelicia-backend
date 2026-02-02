@@ -12,13 +12,17 @@ class OrderStatusTransitionValidatorTest {
 
   @ParameterizedTest
   @CsvSource({
-    "CREATED,PREPARING",
+    "CREATED,CONFIRMED",
     "CREATED,CANCELLED",
+    "CONFIRMED,PREPARING",
+    "CONFIRMED,CANCELLED",
     "PREPARING,READY",
     "PREPARING,CANCELLED",
     "READY,DELIVERED",
-    // Permitimos READY->OUT_FOR_DELIVERY aunque la UI del sprint no lo use
-    "READY,OUT_FOR_DELIVERY"
+    "READY,OUT_FOR_DELIVERY",
+    "READY,CANCELLED",
+    "OUT_FOR_DELIVERY,DELIVERED",
+    "OUT_FOR_DELIVERY,CANCELLED"
   })
   void validTransitions_doNotThrow(String current, String next) {
     assertDoesNotThrow(
@@ -28,7 +32,13 @@ class OrderStatusTransitionValidatorTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"CREATED,DELIVERED", "READY,CREATED", "DELIVERED,READY", "CANCELLED,CREATED"})
+  @CsvSource({
+    "CREATED,PREPARING",
+    "CREATED,DELIVERED",
+    "READY,CREATED",
+    "DELIVERED,READY",
+    "CANCELLED,CREATED"
+  })
   void invalidTransitions_throwBadRequest(String current, String next) {
     var ex =
         assertThrows(

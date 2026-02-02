@@ -1,5 +1,6 @@
 package com.cocinadelicia.backend.order.mapper;
 
+import com.cocinadelicia.backend.order.dto.OrderItemModifierResponse;
 import com.cocinadelicia.backend.order.dto.OrderItemResponse;
 import com.cocinadelicia.backend.order.dto.OrderResponse;
 import com.cocinadelicia.backend.order.model.CustomerOrder;
@@ -40,6 +41,23 @@ public final class OrderMapper {
   }
 
   private static OrderItemResponse toItemResponse(OrderItem item) {
+    List<OrderItemModifierResponse> modifierResponses =
+        item.getModifiers() == null
+            ? List.of()
+            : item.getModifiers().stream()
+                .map(
+                    m ->
+                        new OrderItemModifierResponse(
+                            m.getId(),
+                            m.getModifierOption().getId(),
+                            m.getOptionNameSnapshot(),
+                            m.getQuantity(),
+                            m.getPriceDeltaSnapshot(),
+                            m.getUnitPriceSnapshot(),
+                            m.getTotalPriceSnapshot(),
+                            m.getLinkedProductVariantIdSnapshot()))
+                .toList();
+
     return new OrderItemResponse(
         item.getId(),
         item.getProduct().getId(),
@@ -48,6 +66,7 @@ public final class OrderMapper {
         item.getVariantName(),
         item.getUnitPrice(),
         item.getQuantity(),
-        item.getLineTotal());
+        item.getLineTotal(),
+        modifierResponses);
   }
 }

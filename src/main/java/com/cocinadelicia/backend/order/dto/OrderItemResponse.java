@@ -2,6 +2,7 @@ package com.cocinadelicia.backend.order.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.util.List;
 
 @Schema(description = "Ítem del pedido en la respuesta")
 public record OrderItemResponse(
@@ -14,4 +15,6 @@ public record OrderItemResponse(
         BigDecimal unitPrice,
     @Schema(description = "Cantidad de unidades", example = "2") int quantity,
     @Schema(description = "Total de la línea (unitPrice × quantity)", example = "900.00")
-        BigDecimal lineTotal) {}
+        BigDecimal lineTotal,
+    @Schema(description = "Modificadores aplicados al ítem")
+        List<OrderItemModifierResponse> modifiers) {}

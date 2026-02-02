@@ -5,6 +5,8 @@ import com.cocinadelicia.backend.product.model.Product;
 import com.cocinadelicia.backend.product.model.ProductVariant;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
@@ -50,4 +52,8 @@ public class OrderItem extends BaseAudit {
 
   @Column(name = "line_total", precision = 10, scale = 2, nullable = false)
   private BigDecimal lineTotal;
+
+  @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
+  @Builder.Default
+  private List<OrderItemModifier> modifiers = new ArrayList<>();
 }

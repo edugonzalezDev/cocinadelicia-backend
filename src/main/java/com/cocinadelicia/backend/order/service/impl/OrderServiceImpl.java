@@ -21,8 +21,12 @@ import com.cocinadelicia.backend.order.repository.OrderItemRepository;
 import com.cocinadelicia.backend.order.repository.OrderStatusHistoryRepository;
 import com.cocinadelicia.backend.order.repository.spec.OrderSpecifications;
 import com.cocinadelicia.backend.order.service.OrderService;
+import com.cocinadelicia.backend.product.model.ModifierGroup;
+import com.cocinadelicia.backend.product.model.ModifierOption;
+import com.cocinadelicia.backend.product.model.ModifierSelectionMode;
 import com.cocinadelicia.backend.product.model.Product;
 import com.cocinadelicia.backend.product.model.ProductVariant;
+import com.cocinadelicia.backend.product.repository.ModifierGroupRepository;
 import com.cocinadelicia.backend.product.repository.ProductRepository;
 import com.cocinadelicia.backend.product.repository.ProductVariantRepository;
 import com.cocinadelicia.backend.user.model.AppUser;
@@ -30,7 +34,10 @@ import com.cocinadelicia.backend.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -48,6 +55,7 @@ public class OrderServiceImpl implements OrderService {
   private final UserRepository userRepository;
   private final ProductRepository productRepository;
   private final ProductVariantRepository productVariantRepository;
+  private final ModifierGroupRepository modifierGroupRepository;
 
   private final CustomerOrderRepository customerOrderRepository;
   private final OrderItemRepository orderItemRepository; // no se usa explícitamente
@@ -131,7 +139,7 @@ public class OrderServiceImpl implements OrderService {
 
       ProductVariant variant =
           productVariantRepository
-              .findById(it.productVariantId())
+              .findByIdForUpdate(it.productVariantId())
               .orElseThrow(
                   () -> new NotFoundException("VARIANT_NOT_FOUND", "Variante no encontrada."));
 
@@ -152,9 +160,11 @@ public class OrderServiceImpl implements OrderService {
                           "No hay precio vigente para la variante seleccionada."));
 
       unitPrice = unitPrice.setScale(2, RoundingMode.HALF_UP);
-      BigDecimal lineTotal =
+      BigDecimal baseLineTotal =
           unitPrice.multiply(BigDecimal.valueOf(it.quantity())).setScale(2, RoundingMode.HALF_UP);
-      subtotal = subtotal.add(lineTotal);
+
+      // Descontar stock de la variante base si corresponde
+      checkAndConsumeStock(variant, it.quantity());
 
       OrderItem item =
           OrderItem.builder()
@@ -165,8 +175,13 @@ public class OrderServiceImpl implements OrderService {
               .variantName(variant.getName())
               .unitPrice(unitPrice)
               .quantity(it.quantity())
-              .lineTotal(lineTotal)
+              .lineTotal(baseLineTotal)
               .build();
+
+      BigDecimal modifiersTotal = applyModifiersAndPricing(item, variant, it);
+      item.setLineTotal(baseLineTotal.add(modifiersTotal).setScale(2, RoundingMode.HALF_UP));
+
+      subtotal = subtotal.add(item.getLineTotal());
 
       order.addItem(item);
     }
@@ -399,6 +414,211 @@ public class OrderServiceImpl implements OrderService {
     orderWebSocketPublisher.publishOrderUpdated(response);
 
     return response;
+  }
+
+  private BigDecimal applyModifiersAndPricing(
+      OrderItem item, ProductVariant variant, OrderItemRequest request) {
+    int itemQuantity = request.quantity();
+
+    List<ModifierGroup> groups =
+        modifierGroupRepository.findByProductVariant_IdAndActiveTrueOrderBySortOrderAscIdAsc(
+            variant.getId());
+
+    Map<Long, ModifierGroup> groupById = new HashMap<>();
+    Map<Long, ModifierOption> optionById = new HashMap<>();
+    for (ModifierGroup g : groups) {
+      groupById.put(g.getId(), g);
+      if (g.getOptions() != null) {
+        g.getOptions().stream()
+            .filter(ModifierOption::isActive)
+            .forEach(opt -> optionById.put(opt.getId(), opt));
+      }
+    }
+
+    // Si no hay grupos y vienen modifiers → rechazar
+    if (groups.isEmpty() && request.modifiers() != null && !request.modifiers().isEmpty()) {
+      throw new BadRequestException(
+          "MODIFIER_NOT_ALLOWED", "El producto/variante no admite modificadores.");
+    }
+
+    record SelectedOption(ModifierOption option, int quantity) {}
+
+    Map<ModifierGroup, List<SelectedOption>> selections = new HashMap<>();
+    if (request.modifiers() != null) {
+      for (var modReq : request.modifiers()) {
+        ModifierOption option = optionById.get(modReq.modifierOptionId());
+        if (option == null) {
+          throw new BadRequestException(
+              "MODIFIER_OPTION_INVALID", "La opción de modificador indicada no es válida.");
+        }
+        ModifierGroup group = option.getModifierGroup();
+        selections
+            .computeIfAbsent(group, g -> new ArrayList<>())
+            .add(new SelectedOption(option, modReq.quantity() == null ? 1 : modReq.quantity()));
+      }
+    }
+
+    // Defaults
+    for (ModifierGroup group : groups) {
+      boolean hasSelection = selections.containsKey(group) && !selections.get(group).isEmpty();
+      if (!hasSelection
+          && group.getDefaultOption() != null
+          && group.getDefaultOption().isActive()) {
+        int defaultQty =
+            group.getSelectionMode() == ModifierSelectionMode.QTY
+                    && group.getRequiredTotalQty() != null
+                ? group.getRequiredTotalQty()
+                : 1;
+        selections
+            .computeIfAbsent(group, g -> new ArrayList<>())
+            .add(new SelectedOption(group.getDefaultOption(), defaultQty));
+      }
+    }
+
+    BigDecimal modifiersTotal = BigDecimal.ZERO;
+
+    for (ModifierGroup group : groups) {
+      List<SelectedOption> selected = selections.getOrDefault(group, List.of());
+      int optionCount = selected.size();
+      int totalQty = selected.stream().mapToInt(SelectedOption::quantity).sum();
+
+      if (group.getMinSelect() > 0 && optionCount < group.getMinSelect()) {
+        throw new BadRequestException(
+            "MODIFIER_MIN_SELECT",
+            String.format(
+                "El grupo %s requiere al menos %d opción(es).",
+                group.getName(), group.getMinSelect()));
+      }
+      if (group.getMaxSelect() > 0 && optionCount > group.getMaxSelect()) {
+        throw new BadRequestException(
+            "MODIFIER_MAX_SELECT",
+            String.format(
+                "El grupo %s permite como máximo %d opción(es).",
+                group.getName(), group.getMaxSelect()));
+      }
+
+      boolean hasExclusive = selected.stream().anyMatch(sel -> sel.option().isExclusive());
+      if (hasExclusive && optionCount > 1) {
+        throw new BadRequestException(
+            "MODIFIER_EXCLUSIVE",
+            String.format(
+                "La opción exclusiva en %s no puede combinarse con otras.", group.getName()));
+      }
+
+      switch (group.getSelectionMode()) {
+        case SINGLE -> {
+          if (optionCount > 1) {
+            throw new BadRequestException(
+                "MODIFIER_SINGLE",
+                String.format("El grupo %s solo permite una opción.", group.getName()));
+          }
+          if (selected.stream().anyMatch(sel -> sel.quantity() != 1)) {
+            throw new BadRequestException(
+                "MODIFIER_SINGLE_QTY",
+                String.format("El grupo %s admite cantidad 1 por opción.", group.getName()));
+          }
+        }
+        case MULTI -> {
+          if (selected.stream().anyMatch(sel -> sel.quantity() != 1)) {
+            throw new BadRequestException(
+                "MODIFIER_MULTI_QTY",
+                String.format("El grupo %s solo admite cantidad 1 por opción.", group.getName()));
+          }
+        }
+        case QTY -> {
+          if (group.getRequiredTotalQty() != null && totalQty != group.getRequiredTotalQty()) {
+            throw new BadRequestException(
+                "MODIFIER_REQUIRED_TOTAL",
+                String.format(
+                    "El grupo %s requiere un total de %d unidades.",
+                    group.getName(), group.getRequiredTotalQty()));
+          }
+        }
+        default -> {}
+      }
+
+      for (SelectedOption sel : selected) {
+        ModifierOption option = sel.option();
+        int requestedQty = sel.quantity();
+        if (requestedQty <= 0) {
+          throw new BadRequestException(
+              "MODIFIER_QTY_INVALID", "La cantidad del modificador debe ser mayor a 0.");
+        }
+
+        BigDecimal optionUnitPrice = null;
+        BigDecimal priceDelta = option.getPriceDelta();
+        BigDecimal optionTotal = BigDecimal.ZERO;
+
+        if (priceDelta != null) {
+          optionTotal =
+              priceDelta
+                  .multiply(BigDecimal.valueOf(requestedQty))
+                  .multiply(BigDecimal.valueOf(itemQuantity))
+                  .setScale(2, RoundingMode.HALF_UP);
+        }
+
+        if (option.getLinkedProductVariant() != null) {
+          ProductVariant linkedVariant =
+              productVariantRepository
+                  .findByIdForUpdate(option.getLinkedProductVariant().getId())
+                  .orElseThrow(
+                      () ->
+                          new NotFoundException(
+                              "LINKED_VARIANT_NOT_FOUND", "Variante linkeada no encontrada."));
+
+          BigDecimal linkedPrice =
+              priceQueryPort
+                  .findActivePriceByVariantId(linkedVariant.getId())
+                  .orElseThrow(
+                      () ->
+                          new BadRequestException(
+                              "LINKED_PRICE_NOT_FOUND",
+                              "No hay precio vigente para la variante de modificador."));
+          optionUnitPrice = linkedPrice.setScale(2, RoundingMode.HALF_UP);
+          BigDecimal linkedTotal =
+              optionUnitPrice
+                  .multiply(BigDecimal.valueOf(requestedQty))
+                  .multiply(BigDecimal.valueOf(itemQuantity))
+                  .setScale(2, RoundingMode.HALF_UP);
+          optionTotal = optionTotal.add(linkedTotal);
+
+          // Stock de la variante linkeada
+          checkAndConsumeStock(linkedVariant, requestedQty * itemQuantity);
+        }
+
+        modifiersTotal = modifiersTotal.add(optionTotal);
+
+        var modifierEntity =
+            com.cocinadelicia.backend.order.model.OrderItemModifier.builder()
+                .orderItem(item)
+                .modifierOption(option)
+                .quantity(requestedQty)
+                .optionNameSnapshot(option.getName())
+                .priceDeltaSnapshot(priceDelta)
+                .unitPriceSnapshot(optionUnitPrice)
+                .totalPriceSnapshot(optionTotal)
+                .linkedProductVariantIdSnapshot(
+                    option.getLinkedProductVariant() != null
+                        ? option.getLinkedProductVariant().getId()
+                        : null)
+                .build();
+        item.getModifiers().add(modifierEntity);
+      }
+    }
+
+    return modifiersTotal.setScale(2, RoundingMode.HALF_UP);
+  }
+
+  private void checkAndConsumeStock(ProductVariant variant, int requiredQty) {
+    if (variant == null || !variant.isManagesStock()) return;
+    if (variant.getStockQuantity() < requiredQty) {
+      throw new BadRequestException(
+          "OUT_OF_STOCK",
+          String.format(
+              "No hay stock suficiente para la variante %s (solicitado %d, disponible %d)",
+              variant.getName(), requiredQty, variant.getStockQuantity()));
+    }
+    variant.setStockQuantity(variant.getStockQuantity() - requiredQty);
   }
 
   // === Helpers ===
