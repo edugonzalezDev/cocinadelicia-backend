@@ -3,7 +3,7 @@ target/
 backend-snippets/
 zips/
 structure_exports/
-logs/context/
+context/
 *.zip
 generate_backend_snippets.sh
 .mvn/wrapper/maven-wrapper.jar
