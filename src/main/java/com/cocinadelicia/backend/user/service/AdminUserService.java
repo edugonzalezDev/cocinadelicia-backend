@@ -7,6 +7,7 @@ import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
 import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
 import com.cocinadelicia.backend.user.dto.UpdateUserProfileRequest;
+import com.cocinadelicia.backend.user.dto.UserAuditLogDTO;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import java.util.Set;
 import org.springframework.data.domain.Pageable;
@@ -102,4 +103,26 @@ public interface AdminUserService {
    * @throws com.cocinadelicia.backend.common.exception.NotFoundException si el usuario no existe
    */
   UserResponseDTO updateStatus(Long userId, boolean isActive, String performedBy);
+
+  /**
+   * Sincroniza un usuario desde Cognito a DB (roles) - US07.
+   *
+   * <p>Obtiene roles actuales desde Cognito groups y los sincroniza con DB. Registra auditoría.
+   *
+   * @param userId ID del usuario a sincronizar
+   * @return información actualizada del usuario
+   * @throws com.cocinadelicia.backend.common.exception.NotFoundException si el usuario no existe
+   *     en DB o Cognito
+   */
+  UserResponseDTO syncUser(Long userId);
+
+  /**
+   * Obtiene historial de auditoría de un usuario con paginación - US07.
+   *
+   * @param userId ID del usuario
+   * @param pageable configuración de paginación (sort por changedAt DESC recomendado)
+   * @return página de logs de auditoría
+   * @throws com.cocinadelicia.backend.common.exception.NotFoundException si el usuario no existe
+   */
+  PageResponse<UserAuditLogDTO> getUserAuditLog(Long userId, Pageable pageable);
 }

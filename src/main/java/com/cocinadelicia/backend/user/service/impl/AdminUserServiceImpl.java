@@ -16,11 +16,14 @@ import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
 import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
 import com.cocinadelicia.backend.user.dto.UpdateUserProfileRequest;
+import com.cocinadelicia.backend.user.dto.UserAuditLogDTO;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.model.AppUser;
 import com.cocinadelicia.backend.user.model.Role;
+import com.cocinadelicia.backend.user.model.UserAuditLog;
 import com.cocinadelicia.backend.user.model.UserRole;
 import com.cocinadelicia.backend.user.repository.RoleRepository;
+import com.cocinadelicia.backend.user.repository.UserAuditLogRepository;
 import com.cocinadelicia.backend.user.repository.UserRepository;
 import com.cocinadelicia.backend.user.service.AdminUserService;
 import java.util.Arrays;
@@ -47,6 +50,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   private final CustomerOrderRepository customerOrderRepository;
   private final CognitoAdminClient cognitoAdminClient;
   private final RoleRepository roleRepository;
+  private final UserAuditLogRepository userAuditLogRepository;
 
   @Override
   public PageResponse<AdminUserListItemDTO> listUsers(AdminUserFilter filter, Pageable pageable) {
@@ -144,10 +148,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     newUser = userRepository.save(newUser);
     log.info("User {} invited successfully with {} roles", normalizedEmail, request.roles().size());
 
-    // 7. TODO US07: Registrar auditoría persistente (user_audit_log)
-    // auditLogRepository.save(new UserAuditLog(newUser.getId(), "USER_INVITED", adminUsername,
-    // roles...))
-    log.debug("TODO US07: Register audit log for USER_INVITED action");
+    // 7. Registrar auditoría persistente - US07
+    String auditDetails =
+        String.format("{\"email\":\"%s\",\"roles\":%s}", normalizedEmail, toJsonArray(request.roles()));
+    logAuditAction(newUser.getId(), "USER_INVITED", "ADMIN", auditDetails);
 
     // 8. Mapear a DTO y retornar
     return mapToUserResponseDTO(newUser);
@@ -226,8 +230,12 @@ public class AdminUserServiceImpl implements AdminUserService {
       log.warn("User {} imported without roles (no valid groups in Cognito)", normalizedEmail);
     }
 
-    // 7. TODO US07: Registrar auditoría persistente (user_audit_log)
-    log.debug("TODO US07: Register audit log for USER_IMPORTED action");
+    // 7. Registrar auditoría persistente - US07
+    String auditDetails =
+        String.format(
+            "{\"cognitoUserId\":\"%s\",\"email\":\"%s\",\"roles\":%s}",
+            cognitoUser.getCognitoUserId(), normalizedEmail, toJsonArray(validRoles));
+    logAuditAction(newUser.getId(), "USER_IMPORTED", "ADMIN", auditDetails);
 
     // 8. Mapear a DTO y retornar
     return mapToUserResponseDTO(newUser);
@@ -473,8 +481,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         roles,
         performedBy);
 
-    // TODO: US07 - Registrar auditoría persistente en user_audit_log
-    // auditService.logRoleChange(userId, currentRoles, roles, performedBy);
+    // Registrar auditoría persistente - US07
+    String auditDetails =
+        String.format(
+            "{\"oldRoles\":%s,\"newRoles\":%s}",
+            toJsonArray(currentRoles), toJsonArray(roles));
+    logAuditAction(userId, "ROLE_CHANGED", performedBy, auditDetails);
 
     return mapToUserResponseDTO(user);
   }
@@ -536,10 +548,213 @@ public class AdminUserServiceImpl implements AdminUserService {
         isActive,
         performedBy);
 
-    // TODO: US07 - Registrar auditoría persistente en user_audit_log
-    // auditService.logStatusChange(userId, oldStatus, isActive, performedBy);
+    // Registrar auditoría persistente - US07
+    String auditDetails =
+        String.format("{\"oldStatus\":%s,\"newStatus\":%s}", oldStatus, isActive);
+    logAuditAction(userId, "STATUS_CHANGED", performedBy, auditDetails);
 
     return mapToUserResponseDTO(user);
+  }
+
+  @Override
+  @Transactional
+  public UserResponseDTO syncUser(Long userId) {
+    log.info("AdminUserService.syncUser: syncing user {}", userId);
+
+    // 1. Buscar usuario en DB
+    AppUser user =
+        userRepository
+            .findById(userId)
+            .orElseThrow(
+                () -> {
+                  log.warn("User not found with id: {}", userId);
+                  return new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado.");
+                });
+
+    String email = user.getEmail();
+    log.debug("Syncing user {} ({})", userId, email);
+
+    // 2. Obtener usuario de Cognito (lanza NotFoundException si no existe)
+    CognitoUserInfo cognitoUser = cognitoAdminClient.getUser(email);
+    log.debug("User found in Cognito with groups: {}", cognitoUser.getGroups());
+
+    // 3. Mapear grupos de Cognito a roles válidos
+    Set<RoleName> cognitoRoles = mapCognitoGroupsToRoles(cognitoUser.getGroups());
+    log.debug("Cognito roles mapped: {}", cognitoRoles);
+
+    // 4. Obtener roles actuales en DB
+    Set<RoleName> currentRoles =
+        user.getRoles().stream().map(ur -> ur.getRole().getName()).collect(Collectors.toSet());
+    log.debug("Current DB roles: {}", currentRoles);
+
+    // 5. Sincronizar roles si hay diferencias
+    if (!cognitoRoles.equals(currentRoles)) {
+      log.info("Role mismatch detected. Syncing from Cognito to DB...");
+
+      // Calcular cambios
+      Set<RoleName> rolesToAdd = new java.util.HashSet<>(cognitoRoles);
+      rolesToAdd.removeAll(currentRoles);
+
+      Set<RoleName> rolesToRemove = new java.util.HashSet<>(currentRoles);
+      rolesToRemove.removeAll(cognitoRoles);
+
+      log.debug("Roles to add: {}", rolesToAdd);
+      log.debug("Roles to remove: {}", rolesToRemove);
+
+      // Obtener entidades de roles
+      List<Role> roleEntities = roleRepository.findByNameIn(cognitoRoles);
+      Map<RoleName, Role> rolesByName =
+          roleEntities.stream().collect(Collectors.toMap(Role::getName, r -> r));
+
+      // Remover roles que ya no existen en Cognito
+      user.getRoles()
+          .removeIf(
+              userRole -> {
+                RoleName roleName = userRole.getRole().getName();
+                if (!cognitoRoles.contains(roleName)) {
+                  log.debug("Removing role {} from user {}", roleName, userId);
+                  return true;
+                }
+                return false;
+              });
+
+      // Agregar roles nuevos desde Cognito
+      Set<RoleName> existingRoleNames =
+          user.getRoles().stream().map(ur -> ur.getRole().getName()).collect(Collectors.toSet());
+
+      for (RoleName roleName : cognitoRoles) {
+        if (!existingRoleNames.contains(roleName)) {
+          Role role = rolesByName.get(roleName);
+          if (role != null) {
+            UserRole userRole = new UserRole(user, role);
+            user.getRoles().add(userRole);
+            log.debug("Adding role {} to user {}", roleName, userId);
+          }
+        }
+      }
+
+      // Persistir cambios
+      user = userRepository.save(user);
+
+      // Registrar auditoría
+      String details =
+          String.format(
+              "{\"source\":\"cognito\",\"oldRoles\":%s,\"newRoles\":%s}",
+              toJsonArray(currentRoles), toJsonArray(cognitoRoles));
+      logAuditAction(userId, "USER_SYNCED", "SYSTEM", details);
+
+      log.info(
+          "User {} synced successfully. Roles updated: {} -> {}",
+          userId,
+          currentRoles,
+          cognitoRoles);
+    } else {
+      log.info("User {} already in sync with Cognito. No changes needed.", userId);
+
+      // Registrar auditoría de sync sin cambios
+      logAuditAction(
+          userId, "USER_SYNCED", "SYSTEM", "{\"source\":\"cognito\",\"changes\":\"none\"}");
+    }
+
+    return mapToUserResponseDTO(user);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public PageResponse<UserAuditLogDTO> getUserAuditLog(Long userId, Pageable pageable) {
+    log.info(
+        "AdminUserService.getUserAuditLog: userId={} page={} size={}",
+        userId,
+        pageable.getPageNumber(),
+        pageable.getPageSize());
+
+    // 1. Validar que usuario existe
+    if (!userRepository.existsById(userId)) {
+      log.warn("User not found with id: {}", userId);
+      throw new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado.");
+    }
+
+    // 2. Consultar logs de auditoría con paginación
+    Page<UserAuditLog> page =
+        userAuditLogRepository.findByUserIdOrderByChangedAtDesc(userId, pageable);
+
+    log.debug("Found {} audit logs for user {}", page.getTotalElements(), userId);
+
+    // 3. Mapear a DTOs
+    List<UserAuditLogDTO> content = page.getContent().stream().map(this::mapToAuditLogDTO).toList();
+
+    return new PageResponse<>(
+        content, page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
+  }
+
+  /**
+   * Registra una acción de auditoría en DB y log.
+   *
+   * @param userId ID del usuario afectado
+   * @param action acción realizada (ej: ROLE_CHANGED, STATUS_CHANGED)
+   * @param changedBy email del administrador o SYSTEM (puede ser null)
+   * @param details detalles adicionales en formato JSON
+   */
+  private void logAuditAction(Long userId, String action, String changedBy, String details) {
+    try {
+      // Usar "UNKNOWN" si changedBy es null o vacío para evitar violación de NOT NULL constraint
+      String effectiveChangedBy =
+          (changedBy != null && !changedBy.isBlank()) ? changedBy : "UNKNOWN";
+
+      // Log warning si el changedBy era null (indica problema en la extracción del email del JWT)
+      if (changedBy == null || changedBy.isBlank()) {
+        log.warn(
+            "changedBy is null/blank for audit action userId={} action={}. Using 'UNKNOWN'. "
+                + "Check JWT email claim extraction.",
+            userId,
+            action);
+      }
+
+      UserAuditLog auditLog =
+          UserAuditLog.builder()
+              .userId(userId)
+              .action(action)
+              .changedBy(effectiveChangedBy)
+              .details(details)
+              .build();
+
+      userAuditLogRepository.save(auditLog);
+      log.info("Audit log created: userId={} action={} by={}", userId, action, effectiveChangedBy);
+
+    } catch (Exception e) {
+      // No fallar la operación principal si falla la auditoría
+      log.error(
+          "Failed to save audit log for userId={} action={}: {}",
+          userId,
+          action,
+          e.getMessage(),
+          e);
+    }
+  }
+
+  /**
+   * Mapea UserAuditLog a DTO.
+   */
+  private UserAuditLogDTO mapToAuditLogDTO(UserAuditLog log) {
+    return new UserAuditLogDTO(
+        log.getId(),
+        log.getUserId(),
+        log.getAction(),
+        log.getChangedBy(),
+        log.getChangedAt(),
+        log.getDetails());
+  }
+
+  /**
+   * Convierte un Set de RoleName a array JSON string.
+   */
+  private String toJsonArray(Set<RoleName> roles) {
+    if (roles == null || roles.isEmpty()) {
+      return "[]";
+    }
+    return "["
+        + roles.stream().map(r -> "\"" + r.name() + "\"").collect(Collectors.joining(","))
+        + "]";
   }
 
   /**

@@ -7,6 +7,7 @@ import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
 import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
 import com.cocinadelicia.backend.user.dto.UpdateUserProfileRequest;
+import com.cocinadelicia.backend.user.dto.UserAuditLogDTO;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -373,7 +374,7 @@ public class AdminUserController {
       @org.springframework.security.core.annotation.AuthenticationPrincipal
           org.springframework.security.oauth2.jwt.Jwt jwt) {
 
-    String performedBy = jwt.getClaim("email");
+    String performedBy = extractEmailFromJwt(jwt);
     log.info(
         "AdminUserController.updateRoles called for userId={} newRoles={} by={}",
         id,
@@ -452,7 +453,7 @@ public class AdminUserController {
       @org.springframework.security.core.annotation.AuthenticationPrincipal
           org.springframework.security.oauth2.jwt.Jwt jwt) {
 
-    String performedBy = jwt.getClaim("email");
+    String performedBy = extractEmailFromJwt(jwt);
     log.info(
         "AdminUserController.updateStatus called for userId={} isActive={} by={}",
         id,
@@ -462,6 +463,145 @@ public class AdminUserController {
     UserResponseDTO response = adminUserService.updateStatus(id, request.isActive(), performedBy);
 
     log.info("Status updated successfully for userId={}", id);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @Operation(
+      summary = "Sincronizar usuario desde Cognito (Admin) - US07",
+      description =
+          """
+          Sincroniza roles del usuario desde Cognito groups a DB.
+
+          **Proceso:**
+          1. Obtiene roles actuales del usuario en Cognito
+          2. Compara con roles en DB
+          3. Actualiza DB para reflejar estado de Cognito
+          4. Registra acción en auditoría
+
+          **Casos de uso:**
+          - Reconciliar diferencias tras cambios manuales en Cognito
+          - Verificar sincronización tras importación
+          - Troubleshooting de permisos
+
+          **Requiere:** Rol ADMIN
+          """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Usuario sincronizado exitosamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = UserResponseDTO.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado en DB o Cognito",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class)))
+      })
+  @PostMapping("/{id}/sync")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<UserResponseDTO> syncUser(@PathVariable Long id) {
+
+    log.info("AdminUserController.syncUser called for userId={}", id);
+
+    UserResponseDTO response = adminUserService.syncUser(id);
+
+    log.info("User synced successfully: userId={}", id);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @Operation(
+      summary = "Obtener historial de auditoría de usuario (Admin) - US07",
+      description =
+          """
+          Devuelve historial paginado de acciones realizadas sobre un usuario.
+
+          **Acciones registradas:**
+          - USER_INVITED: Usuario invitado y creado en Cognito
+          - USER_IMPORTED: Usuario importado desde Cognito
+          - ROLE_CHANGED: Cambio de roles
+          - STATUS_CHANGED: Activación/desactivación
+          - USER_SYNCED: Sincronización manual desde Cognito
+
+          **Paginación:**
+          - Ordenado por fecha descendente (más reciente primero)
+          - Tamaño de página default: 20
+          - Máximo: 100
+
+          **Requiere:** Rol ADMIN
+          """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Historial de auditoría obtenido exitosamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = PageResponse.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class)))
+      })
+  @GetMapping("/{id}/audit")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<PageResponse<UserAuditLogDTO>> getUserAuditLog(
+      @PathVariable Long id,
+      @ParameterObject
+          @PageableDefault(size = 20, sort = "changedAt", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+
+    log.info(
+        "AdminUserController.getUserAuditLog called for userId={} page={} size={}",
+        id,
+        pageable.getPageNumber(),
+        pageable.getPageSize());
+
+    // Aplicar límite máximo de tamaño de página
+    Pageable safePageable = safePageable(pageable, 100);
+
+    PageResponse<UserAuditLogDTO> response = adminUserService.getUserAuditLog(id, safePageable);
+
+    log.debug(
+        "AdminUserController.getUserAuditLog returned {} logs (total: {})",
+        response.content().size(),
+        response.totalElements());
 
     return ResponseEntity.ok(response);
   }
@@ -476,5 +616,41 @@ public class AdminUserController {
   private Pageable safePageable(Pageable pageable, int maxSize) {
     int size = Math.min(pageable.getPageSize(), maxSize);
     return PageRequest.of(pageable.getPageNumber(), size, pageable.getSort());
+  }
+
+  /**
+   * Extrae el email del JWT para auditoría.
+   *
+   * <p>Intenta obtener el email en el siguiente orden:
+   *
+   * <ol>
+   *   <li>Claim "email"
+   *   <li>Claim "preferred_username"
+   *   <li>Claim "sub" (último recurso)
+   * </ol>
+   *
+   * @param jwt token JWT
+   * @return email o identificador del usuario, nunca null
+   */
+  private String extractEmailFromJwt(org.springframework.security.oauth2.jwt.Jwt jwt) {
+    String email = jwt.getClaim("email");
+    if (email != null && !email.isBlank()) {
+      return email;
+    }
+
+    String preferredUsername = jwt.getClaim("preferred_username");
+    if (preferredUsername != null && !preferredUsername.isBlank()) {
+      log.warn("JWT missing 'email' claim, using 'preferred_username': {}", preferredUsername);
+      return preferredUsername;
+    }
+
+    String sub = jwt.getSubject();
+    if (sub != null && !sub.isBlank()) {
+      log.warn("JWT missing 'email' and 'preferred_username' claims, using 'sub': {}", sub);
+      return sub;
+    }
+
+    log.error("JWT missing all expected identity claims (email, preferred_username, sub)");
+    return "UNKNOWN_JWT_USER";
   }
 }
