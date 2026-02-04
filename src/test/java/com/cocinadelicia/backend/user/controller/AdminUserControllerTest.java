@@ -637,6 +637,314 @@ class AdminUserControllerTest {
 
     verify(adminUserService, times(1)).updateUserProfile(eq(1L), any());
   }
+
+  // ==================== US05: PUT /api/admin/users/{id}/roles ====================
+
+  @Test
+  void updateRoles_withoutAuth_returns401() throws Exception {
+    String requestBody = "{\"roles\": [\"CUSTOMER\", \"CHEF\"]}";
+
+    mvc.perform(
+            post("/api/admin/users/1/roles")
+                .contentType("application/json")
+                .content(requestBody))
+        .andExpect(status().isUnauthorized());
+
+    verify(adminUserService, never()).updateRoles(any(), any(), any(), any());
+  }
+
+  @Test
+  void updateRoles_withCustomerRole_returns403() throws Exception {
+    String requestBody = "{\"roles\": [\"CUSTOMER\", \"CHEF\"]}";
+
+    mvc.perform(
+            post("/api/admin/users/1/roles")
+                .contentType("application/json")
+                .content(requestBody)
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+        .andExpect(status().isForbidden());
+
+    verify(adminUserService, never()).updateRoles(any(), any(), any(), any());
+  }
+
+  @Test
+  void updateRoles_happyPath_returns200() throws Exception {
+    com.cocinadelicia.backend.user.dto.UpdateRolesRequest request =
+        new com.cocinadelicia.backend.user.dto.UpdateRolesRequest(
+            Set.of(RoleName.CUSTOMER, RoleName.CHEF), null);
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(1L)
+            .cognitoUserId("cognito-123")
+            .email("user@example.com")
+            .firstName("Test")
+            .lastName("User")
+            .phone("+59899111111")
+            .roles(Set.of("CUSTOMER", "CHEF"))
+            .build();
+
+    when(adminUserService.updateRoles(eq(1L), any(), any(), any())).thenReturn(mockUser);
+
+    mvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/admin/users/1/roles")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.roles").isArray())
+        .andExpect(jsonPath("$.roles").value(org.hamcrest.Matchers.hasSize(2)));
+
+    verify(adminUserService, times(1))
+        .updateRoles(eq(1L), eq(Set.of(RoleName.CUSTOMER, RoleName.CHEF)), eq(null), eq("admin@example.com"));
+  }
+
+  @Test
+  void updateRoles_promoteToAdminWithConfirmation_returns200() throws Exception {
+    com.cocinadelicia.backend.user.dto.UpdateRolesRequest request =
+        new com.cocinadelicia.backend.user.dto.UpdateRolesRequest(
+            Set.of(RoleName.CUSTOMER, RoleName.ADMIN),
+            "PROMOVER USER@EXAMPLE.COM A ADMIN");
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(2L)
+            .cognitoUserId("cognito-456")
+            .email("user@example.com")
+            .firstName("Test")
+            .lastName("User")
+            .phone("+59899222222")
+            .roles(Set.of("CUSTOMER", "ADMIN"))
+            .build();
+
+    when(adminUserService.updateRoles(eq(2L), any(), any(), any())).thenReturn(mockUser);
+
+    mvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/admin/users/2/roles")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.roles").value(org.hamcrest.Matchers.hasItem("ADMIN")));
+
+    verify(adminUserService, times(1))
+        .updateRoles(
+            eq(2L),
+            eq(Set.of(RoleName.CUSTOMER, RoleName.ADMIN)),
+            eq("PROMOVER USER@EXAMPLE.COM A ADMIN"),
+            eq("admin@example.com"));
+  }
+
+  @Test
+  void updateRoles_selfDemotion_returns400() throws Exception {
+    com.cocinadelicia.backend.user.dto.UpdateRolesRequest request =
+        new com.cocinadelicia.backend.user.dto.UpdateRolesRequest(
+            Set.of(RoleName.CUSTOMER), null);
+
+    when(adminUserService.updateRoles(eq(1L), any(), any(), any()))
+        .thenThrow(
+            new com.cocinadelicia.backend.common.exception.BadRequestException(
+                "SELF_DEMOTION_NOT_ALLOWED",
+                "No puede quitarse a sí mismo el rol ADMIN"));
+
+    mvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/admin/users/1/roles")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("SELF_DEMOTION_NOT_ALLOWED"));
+
+    verify(adminUserService, times(1)).updateRoles(eq(1L), any(), any(), any());
+  }
+
+  @Test
+  void updateRoles_userNotFound_returns404() throws Exception {
+    com.cocinadelicia.backend.user.dto.UpdateRolesRequest request =
+        new com.cocinadelicia.backend.user.dto.UpdateRolesRequest(
+            Set.of(RoleName.CUSTOMER), null);
+
+    when(adminUserService.updateRoles(eq(999L), any(), any(), any()))
+        .thenThrow(new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado"));
+
+    mvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/admin/users/999/roles")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
+
+    verify(adminUserService, times(1)).updateRoles(eq(999L), any(), any(), any());
+  }
+
+  @Test
+  void updateRoles_emptyRoles_returns400() throws Exception {
+    String requestBody = "{\"roles\": []}";
+
+    mvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/admin/users/1/roles")
+                .contentType("application/json")
+                .content(requestBody)
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields").exists());
+
+    verify(adminUserService, never()).updateRoles(any(), any(), any(), any());
+  }
+
+  // ==================== US06: PATCH /api/admin/users/{id}/status ====================
+
+  @Test
+  void updateStatus_withoutAuth_returns401() throws Exception {
+    String requestBody = "{\"isActive\": true}";
+
+    mvc.perform(
+            patch("/api/admin/users/1/status")
+                .contentType("application/json")
+                .content(requestBody))
+        .andExpect(status().isUnauthorized());
+
+    verify(adminUserService, never()).updateStatus(any(), anyBoolean(), any());
+  }
+
+  @Test
+  void updateStatus_withCustomerRole_returns403() throws Exception {
+    String requestBody = "{\"isActive\": false}";
+
+    mvc.perform(
+            patch("/api/admin/users/1/status")
+                .contentType("application/json")
+                .content(requestBody)
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+        .andExpect(status().isForbidden());
+
+    verify(adminUserService, never()).updateStatus(any(), anyBoolean(), any());
+  }
+
+  @Test
+  void updateStatus_activateUser_returns200() throws Exception {
+    com.cocinadelicia.backend.user.dto.UpdateUserStatusRequest request =
+        new com.cocinadelicia.backend.user.dto.UpdateUserStatusRequest(true);
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(1L)
+            .cognitoUserId("cognito-123")
+            .email("user@example.com")
+            .firstName("Test")
+            .lastName("User")
+            .phone("+59899111111")
+            .roles(Set.of("CUSTOMER"))
+            .build();
+
+    when(adminUserService.updateStatus(eq(1L), eq(true), any())).thenReturn(mockUser);
+
+    mvc.perform(
+            patch("/api/admin/users/1/status")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.email").value("user@example.com"));
+
+    verify(adminUserService, times(1)).updateStatus(eq(1L), eq(true), eq("admin@example.com"));
+  }
+
+  @Test
+  void updateStatus_deactivateUser_returns200() throws Exception {
+    com.cocinadelicia.backend.user.dto.UpdateUserStatusRequest request =
+        new com.cocinadelicia.backend.user.dto.UpdateUserStatusRequest(false);
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(2L)
+            .cognitoUserId("cognito-456")
+            .email("another@example.com")
+            .firstName("Another")
+            .lastName("User")
+            .phone("+59899222222")
+            .roles(Set.of("CHEF"))
+            .build();
+
+    when(adminUserService.updateStatus(eq(2L), eq(false), any())).thenReturn(mockUser);
+
+    mvc.perform(
+            patch("/api/admin/users/2/status")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(2));
+
+    verify(adminUserService, times(1)).updateStatus(eq(2L), eq(false), eq("admin@example.com"));
+  }
+
+  @Test
+  void updateStatus_userNotFound_returns404() throws Exception {
+    com.cocinadelicia.backend.user.dto.UpdateUserStatusRequest request =
+        new com.cocinadelicia.backend.user.dto.UpdateUserStatusRequest(true);
+
+    when(adminUserService.updateStatus(eq(999L), anyBoolean(), any()))
+        .thenThrow(new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado"));
+
+    mvc.perform(
+            patch("/api/admin/users/999/status")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
+
+    verify(adminUserService, times(1)).updateStatus(eq(999L), eq(true), any());
+  }
+
+  @Test
+  void updateStatus_missingIsActive_returns400() throws Exception {
+    String requestBody = "{}"; // isActive null
+
+    mvc.perform(
+            patch("/api/admin/users/1/status")
+                .contentType("application/json")
+                .content(requestBody)
+                .with(
+                    jwt()
+                        .jwt(jwt -> jwt.claim("email", "admin@example.com"))
+                        .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields").exists());
+
+    verify(adminUserService, never()).updateStatus(any(), anyBoolean(), any());
+  }
 }
-
-

@@ -4,6 +4,7 @@ import static com.cocinadelicia.backend.user.repository.spec.UserSpecifications.
 
 import com.cocinadelicia.backend.auth.cognito.CognitoAdminClient;
 import com.cocinadelicia.backend.auth.cognito.CognitoUserInfo;
+import com.cocinadelicia.backend.common.exception.BadRequestException;
 import com.cocinadelicia.backend.common.exception.ConflictException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
@@ -25,6 +26,7 @@ import com.cocinadelicia.backend.user.service.AdminUserService;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -318,6 +320,225 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     // 4. Retornar DTO actualizado
+    return mapToUserResponseDTO(user);
+  }
+
+  @Override
+  @Transactional
+  public UserResponseDTO updateRoles(
+      Long userId, Set<RoleName> roles, String confirmText, String performedBy) {
+    log.info(
+        "AdminUserService.updateRoles: userId={} newRoles={} performedBy={}",
+        userId,
+        roles,
+        performedBy);
+
+    // 1. Buscar usuario
+    AppUser user =
+        userRepository
+            .findById(userId)
+            .orElseThrow(
+                () -> {
+                  log.warn("User not found with id: {}", userId);
+                  return new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado.");
+                });
+
+    // 2. Capturar roles actuales (antes del cambio)
+    Set<RoleName> currentRoles =
+        user.getRoles().stream()
+            .map(ur -> ur.getRole().getName())
+            .collect(Collectors.toSet());
+
+    log.debug("Current roles for user {}: {}", userId, currentRoles);
+
+    // 3. Validación de hardening: auto-democión de ADMIN
+    // Si el usuario que ejecuta la acción es el mismo que se está modificando
+    if (performedBy != null && performedBy.equalsIgnoreCase(user.getEmail())) {
+      boolean hadAdmin = currentRoles.contains(RoleName.ADMIN);
+      boolean willHaveAdmin = roles.contains(RoleName.ADMIN);
+
+      if (hadAdmin && !willHaveAdmin) {
+        log.warn("Self-demotion attempt blocked: user {} tried to remove own ADMIN role", userId);
+        throw new BadRequestException(
+            "SELF_DEMOTION_NOT_ALLOWED",
+            "No puede quitarse a sí mismo el rol ADMIN. Solicite a otro administrador que realice el cambio.");
+      }
+    }
+
+    // 4. Validación de hardening: confirmación para promover a ADMIN
+    boolean willAddAdmin = roles.contains(RoleName.ADMIN) && !currentRoles.contains(RoleName.ADMIN);
+    if (willAddAdmin) {
+      String expectedConfirmText = "PROMOVER " + user.getEmail().toUpperCase() + " A ADMIN";
+      String normalizedConfirmText =
+          confirmText == null ? null : confirmText.trim().toUpperCase();
+
+      if (!expectedConfirmText.equals(normalizedConfirmText)) {
+        log.warn(
+            "Admin promotion blocked: invalid confirmText for user {}. Expected: '{}', Got: '{}'",
+            userId,
+            expectedConfirmText,
+            confirmText);
+        throw new BadRequestException(
+            "ADMIN_PROMOTION_REQUIRES_CONFIRMATION",
+            "Para promover a ADMIN debe confirmar escribiendo exactamente: '" + expectedConfirmText + "'");
+      }
+      log.info("Admin promotion confirmed for user {}", userId);
+    }
+
+    // 5. Calcular cambios en roles
+    Set<RoleName> rolesToAdd = new java.util.HashSet<>(roles);
+    rolesToAdd.removeAll(currentRoles);
+
+    Set<RoleName> rolesToRemove = new java.util.HashSet<>(currentRoles);
+    rolesToRemove.removeAll(roles);
+
+    log.debug("Roles to add: {}", rolesToAdd);
+    log.debug("Roles to remove: {}", rolesToRemove);
+
+    // 6. Sincronizar con Cognito: grupos en minúsculas
+    String username = user.getEmail();
+
+    try {
+      // Agregar nuevos grupos
+      for (RoleName role : rolesToAdd) {
+        String groupName = role.name().toLowerCase(); // admin, chef, courier, customer
+        cognitoAdminClient.addUserToGroup(username, groupName);
+        log.debug("Added user {} to Cognito group: {}", username, groupName);
+      }
+
+      // Remover grupos antiguos
+      for (RoleName role : rolesToRemove) {
+        String groupName = role.name().toLowerCase();
+        cognitoAdminClient.removeUserFromGroup(username, groupName);
+        log.debug("Removed user {} from Cognito group: {}", username, groupName);
+      }
+
+    } catch (Exception e) {
+      log.error("Error syncing roles to Cognito for user {}: {}", userId, e.getMessage(), e);
+      throw new RuntimeException(
+          "Error al sincronizar roles con Cognito. Los cambios no se aplicaron en DB.", e);
+    }
+
+    // 7. Actualizar roles en DB
+    // En lugar de clear() + add() (que causa ObjectDeletedException),
+    // removemos solo los que ya no deben estar y agregamos solo los nuevos
+
+    // Obtener entidades de roles a asignar
+    List<Role> roleEntities = roleRepository.findByNameIn(roles);
+    if (roleEntities.size() != roles.size()) {
+      log.warn(
+          "Some roles were not found in DB. Requested: {}, Found: {}",
+          roles,
+          roleEntities.stream().map(Role::getName).collect(Collectors.toSet()));
+    }
+
+    // Crear mapa de roles solicitados por nombre
+    Map<RoleName, Role> rolesByName =
+        roleEntities.stream().collect(Collectors.toMap(Role::getName, r -> r));
+
+    // Remover UserRole que ya no deben estar
+    user.getRoles()
+        .removeIf(
+            userRole -> {
+              RoleName roleName = userRole.getRole().getName();
+              if (!roles.contains(roleName)) {
+                log.debug("Removing role {} from user {}", roleName, userId);
+                return true;
+              }
+              return false;
+            });
+
+    // Agregar solo los roles nuevos (que no existen actualmente)
+    Set<RoleName> existingRoleNames =
+        user.getRoles().stream().map(ur -> ur.getRole().getName()).collect(Collectors.toSet());
+
+    for (RoleName roleName : roles) {
+      if (!existingRoleNames.contains(roleName)) {
+        Role role = rolesByName.get(roleName);
+        if (role != null) {
+          UserRole userRole = new UserRole(user, role);
+          user.getRoles().add(userRole);
+          log.debug("Adding role {} to user {}", roleName, userId);
+        }
+      }
+    }
+
+    // 8. Persistir cambios
+    user = userRepository.save(user);
+
+    log.info(
+        "RoleChanged userId={} oldRoles={} newRoles={} by={}",
+        userId,
+        currentRoles,
+        roles,
+        performedBy);
+
+    // TODO: US07 - Registrar auditoría persistente en user_audit_log
+    // auditService.logRoleChange(userId, currentRoles, roles, performedBy);
+
+    return mapToUserResponseDTO(user);
+  }
+
+  @Override
+  @Transactional
+  public UserResponseDTO updateStatus(Long userId, boolean isActive, String performedBy) {
+    log.info(
+        "AdminUserService.updateStatus: userId={} isActive={} performedBy={}",
+        userId,
+        isActive,
+        performedBy);
+
+    // 1. Buscar usuario
+    AppUser user =
+        userRepository
+            .findById(userId)
+            .orElseThrow(
+                () -> {
+                  log.warn("User not found with id: {}", userId);
+                  return new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado.");
+                });
+
+    boolean oldStatus = user.isActive();
+    log.debug("Current status for user {}: {}", userId, oldStatus);
+
+    // Si no hay cambio, retornar sin hacer nada
+    if (oldStatus == isActive) {
+      log.debug("No status change for user {}", userId);
+      return mapToUserResponseDTO(user);
+    }
+
+    // 2. Sincronizar con Cognito primero (fuente de verdad para acceso)
+    String username = user.getEmail();
+
+    try {
+      if (isActive) {
+        cognitoAdminClient.enableUser(username);
+        log.info("User {} enabled in Cognito", username);
+      } else {
+        cognitoAdminClient.disableUser(username);
+        log.info("User {} disabled in Cognito", username);
+      }
+
+    } catch (Exception e) {
+      log.error("Error updating user status in Cognito for user {}: {}", userId, e.getMessage(), e);
+      throw new RuntimeException(
+          "Error al actualizar estado en Cognito. El cambio no se aplicó en DB.", e);
+    }
+
+    // 3. Actualizar en DB (espejo)
+    user.setActive(isActive);
+    user = userRepository.save(user);
+
+    log.info(
+        "StatusChanged userId={} oldStatus={} newStatus={} by={}",
+        userId,
+        oldStatus,
+        isActive,
+        performedBy);
+
+    // TODO: US07 - Registrar auditoría persistente en user_audit_log
+    // auditService.logStatusChange(userId, oldStatus, isActive, performedBy);
+
     return mapToUserResponseDTO(user);
   }
 

@@ -227,6 +227,104 @@ public class CognitoAdminClient {
   }
 
   /**
+   * Remueve un usuario de un grupo de Cognito.
+   *
+   * @param username username del usuario (email)
+   * @param groupName nombre del grupo (ej: admin, customer, chef, courier)
+   * @throws RuntimeException si ocurre error de Cognito
+   */
+  public void removeUserFromGroup(String username, String groupName) {
+    log.info("Removing user {} from Cognito group: {}", username, groupName);
+
+    AdminRemoveUserFromGroupRequest request =
+        AdminRemoveUserFromGroupRequest.builder()
+            .userPoolId(userPoolId)
+            .username(username)
+            .groupName(groupName)
+            .build();
+
+    try {
+      cognitoClient.adminRemoveUserFromGroup(request);
+      log.debug("User {} successfully removed from group {}", username, groupName);
+
+    } catch (ResourceNotFoundException e) {
+      log.warn("User or group not found when removing: {} / {}", username, groupName);
+      // No lanzamos excepción porque el objetivo (usuario sin el grupo) ya se cumple
+
+    } catch (CognitoIdentityProviderException e) {
+      log.error("Cognito error removing user from group: {} - {}", e.awsErrorDetails().errorCode(), e.getMessage());
+      throw new RuntimeException(
+          "Error al remover usuario de grupo en Cognito: " + e.awsErrorDetails().errorMessage(), e);
+    }
+  }
+
+  /**
+   * Habilita (activa) un usuario en Cognito.
+   *
+   * @param username username del usuario (email)
+   * @throws NotFoundException si el usuario no existe en Cognito
+   * @throws RuntimeException si ocurre otro error de Cognito
+   */
+  public void enableUser(String username) {
+    log.info("Enabling user in Cognito: {}", username);
+
+    AdminEnableUserRequest request =
+        AdminEnableUserRequest.builder()
+            .userPoolId(userPoolId)
+            .username(username)
+            .build();
+
+    try {
+      cognitoClient.adminEnableUser(request);
+      log.info("User {} successfully enabled in Cognito", username);
+
+    } catch (UserNotFoundException e) {
+      log.warn("User not found when enabling: {}", username);
+      throw new NotFoundException(
+          "USER_NOT_FOUND_IN_COGNITO",
+          "El usuario no existe en Cognito.");
+
+    } catch (CognitoIdentityProviderException e) {
+      log.error("Cognito error enabling user: {} - {}", e.awsErrorDetails().errorCode(), e.getMessage());
+      throw new RuntimeException(
+          "Error al habilitar usuario en Cognito: " + e.awsErrorDetails().errorMessage(), e);
+    }
+  }
+
+  /**
+   * Deshabilita (bloquea) un usuario en Cognito.
+   *
+   * @param username username del usuario (email)
+   * @throws NotFoundException si el usuario no existe en Cognito
+   * @throws RuntimeException si ocurre otro error de Cognito
+   */
+  public void disableUser(String username) {
+    log.info("Disabling user in Cognito: {}", username);
+
+    AdminDisableUserRequest request =
+        AdminDisableUserRequest.builder()
+            .userPoolId(userPoolId)
+            .username(username)
+            .build();
+
+    try {
+      cognitoClient.adminDisableUser(request);
+      log.info("User {} successfully disabled in Cognito", username);
+
+    } catch (UserNotFoundException e) {
+      log.warn("User not found when disabling: {}", username);
+      throw new NotFoundException(
+          "USER_NOT_FOUND_IN_COGNITO",
+          "El usuario no existe en Cognito.");
+
+    } catch (CognitoIdentityProviderException e) {
+      log.error("Cognito error disabling user: {} - {}", e.awsErrorDetails().errorCode(), e.getMessage());
+      throw new RuntimeException(
+          "Error al deshabilitar usuario en Cognito: " + e.awsErrorDetails().errorMessage(), e);
+    }
+  }
+
+  /**
    * Extrae un atributo de la lista de atributos de Cognito.
    *
    * @param attributes lista de atributos

@@ -231,4 +231,259 @@ class AdminUserServiceImplTest {
     assertThat(result).isNotNull();
     assertThat(result.getRoles()).containsExactly("COURIER"); // Solo el válido
   }
+
+  // ==================== US05: updateRoles ====================
+
+  @Test
+  void updateRoles_happyPath_shouldUpdateRolesInDBAndCognito() {
+    // Arrange
+    Long userId = 10L;
+    String email = "user@example.com";
+    String performedBy = "admin@example.com";
+
+    AppUser user = AppUser.builder().id(userId).email(email).cognitoUserId("sub-123").build();
+
+    // Usuario tiene actualmente CUSTOMER
+    user.getRoles()
+        .add(
+            com.cocinadelicia.backend.user.model.UserRole.builder()
+                .user(user)
+                .role(customerRole)
+                .build());
+
+    // Nuevos roles: CUSTOMER + CHEF (agregar CHEF)
+    Set<RoleName> newRoles = Set.of(RoleName.CUSTOMER, RoleName.CHEF);
+
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+    when(roleRepository.findByNameIn(newRoles)).thenReturn(List.of(customerRole, chefRole));
+    when(userRepository.save(any(AppUser.class))).thenReturn(user);
+
+    // Act
+    UserResponseDTO result = adminUserService.updateRoles(userId, newRoles, null, performedBy);
+
+    // Assert
+    assertThat(result).isNotNull();
+    verify(cognitoAdminClient).addUserToGroup(email, "chef"); // En minúsculas
+    verify(cognitoAdminClient, never()).removeUserFromGroup(anyString(), anyString());
+    verify(userRepository).save(user);
+  }
+
+  @Test
+  void updateRoles_selfDemotion_shouldThrowBadRequest() {
+    // Arrange
+    Long userId = 10L;
+    String email = "admin@example.com";
+    String performedBy = "admin@example.com"; // Mismo usuario
+
+    AppUser user = AppUser.builder().id(userId).email(email).cognitoUserId("sub-123").build();
+
+    // Usuario tiene ADMIN actualmente
+    user.getRoles()
+        .add(
+            com.cocinadelicia.backend.user.model.UserRole.builder()
+                .user(user)
+                .role(adminRole)
+                .build());
+
+    // Intentar quitar ADMIN (solo CUSTOMER)
+    Set<RoleName> newRoles = Set.of(RoleName.CUSTOMER);
+
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+    // Act & Assert
+    org.junit.jupiter.api.Assertions.assertThrows(
+        com.cocinadelicia.backend.common.exception.BadRequestException.class,
+        () -> adminUserService.updateRoles(userId, newRoles, null, performedBy),
+        "SELF_DEMOTION_NOT_ALLOWED");
+
+    verify(cognitoAdminClient, never()).addUserToGroup(anyString(), anyString());
+    verify(cognitoAdminClient, never()).removeUserFromGroup(anyString(), anyString());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void updateRoles_promoteToAdminWithoutConfirmation_shouldThrowBadRequest() {
+    // Arrange
+    Long userId = 20L;
+    String email = "user@example.com";
+    String performedBy = "admin@example.com";
+
+    AppUser user = AppUser.builder().id(userId).email(email).cognitoUserId("sub-456").build();
+
+    // Usuario tiene CUSTOMER
+    user.getRoles()
+        .add(
+            com.cocinadelicia.backend.user.model.UserRole.builder()
+                .user(user)
+                .role(customerRole)
+                .build());
+
+    // Intentar agregar ADMIN sin confirmText
+    Set<RoleName> newRoles = Set.of(RoleName.CUSTOMER, RoleName.ADMIN);
+
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+    // Act & Assert
+    org.junit.jupiter.api.Assertions.assertThrows(
+        com.cocinadelicia.backend.common.exception.BadRequestException.class,
+        () -> adminUserService.updateRoles(userId, newRoles, null, performedBy),
+        "ADMIN_PROMOTION_REQUIRES_CONFIRMATION");
+
+    verify(cognitoAdminClient, never()).addUserToGroup(anyString(), anyString());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void updateRoles_promoteToAdminWithValidConfirmation_shouldSucceed() {
+    // Arrange
+    Long userId = 20L;
+    String email = "user@example.com";
+    String performedBy = "admin@example.com";
+    String confirmText = "PROMOVER USER@EXAMPLE.COM A ADMIN"; // Mayúsculas
+
+    AppUser user = AppUser.builder().id(userId).email(email).cognitoUserId("sub-456").build();
+
+    user.getRoles()
+        .add(
+            com.cocinadelicia.backend.user.model.UserRole.builder()
+                .user(user)
+                .role(customerRole)
+                .build());
+
+    Set<RoleName> newRoles = Set.of(RoleName.CUSTOMER, RoleName.ADMIN);
+
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+    when(roleRepository.findByNameIn(newRoles)).thenReturn(List.of(customerRole, adminRole));
+    when(userRepository.save(any(AppUser.class))).thenReturn(user);
+
+    // Act
+    UserResponseDTO result =
+        adminUserService.updateRoles(userId, newRoles, confirmText, performedBy);
+
+    // Assert
+    assertThat(result).isNotNull();
+    verify(cognitoAdminClient).addUserToGroup(email, "admin"); // Minúsculas
+    verify(userRepository).save(user);
+  }
+
+  @Test
+  void updateRoles_userNotFound_shouldThrowNotFound() {
+    // Arrange
+    Long userId = 999L;
+    Set<RoleName> newRoles = Set.of(RoleName.CUSTOMER);
+
+    when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+    // Act & Assert
+    org.junit.jupiter.api.Assertions.assertThrows(
+        com.cocinadelicia.backend.common.exception.NotFoundException.class,
+        () -> adminUserService.updateRoles(userId, newRoles, null, "admin@example.com"));
+
+    verify(cognitoAdminClient, never()).addUserToGroup(anyString(), anyString());
+    verify(userRepository, never()).save(any());
+  }
+
+  // ==================== US06: updateStatus ====================
+
+  @Test
+  void updateStatus_activateUser_shouldEnableInCognitoAndDB() {
+    // Arrange
+    Long userId = 30L;
+    String email = "user@example.com";
+    String performedBy = "admin@example.com";
+
+    AppUser user =
+        AppUser.builder()
+            .id(userId)
+            .email(email)
+            .cognitoUserId("sub-789")
+            .isActive(false) // Actualmente inactivo
+            .build();
+
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+    when(userRepository.save(any(AppUser.class))).thenReturn(user);
+
+    // Act
+    UserResponseDTO result = adminUserService.updateStatus(userId, true, performedBy);
+
+    // Assert
+    assertThat(result).isNotNull();
+    verify(cognitoAdminClient).enableUser(email);
+    verify(cognitoAdminClient, never()).disableUser(anyString());
+    verify(userRepository).save(user);
+    assertThat(user.isActive()).isTrue();
+  }
+
+  @Test
+  void updateStatus_deactivateUser_shouldDisableInCognitoAndDB() {
+    // Arrange
+    Long userId = 40L;
+    String email = "active@example.com";
+    String performedBy = "admin@example.com";
+
+    AppUser user =
+        AppUser.builder()
+            .id(userId)
+            .email(email)
+            .cognitoUserId("sub-999")
+            .isActive(true) // Actualmente activo
+            .build();
+
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+    when(userRepository.save(any(AppUser.class))).thenReturn(user);
+
+    // Act
+    UserResponseDTO result = adminUserService.updateStatus(userId, false, performedBy);
+
+    // Assert
+    assertThat(result).isNotNull();
+    verify(cognitoAdminClient).disableUser(email);
+    verify(cognitoAdminClient, never()).enableUser(anyString());
+    verify(userRepository).save(user);
+    assertThat(user.isActive()).isFalse();
+  }
+
+  @Test
+  void updateStatus_noChange_shouldNotCallCognito() {
+    // Arrange
+    Long userId = 50L;
+    String email = "unchanged@example.com";
+    String performedBy = "admin@example.com";
+
+    AppUser user =
+        AppUser.builder()
+            .id(userId)
+            .email(email)
+            .cognitoUserId("sub-111")
+            .isActive(true) // Ya está activo
+            .build();
+
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+    // Act
+    UserResponseDTO result = adminUserService.updateStatus(userId, true, performedBy);
+
+    // Assert
+    assertThat(result).isNotNull();
+    verify(cognitoAdminClient, never()).enableUser(anyString());
+    verify(cognitoAdminClient, never()).disableUser(anyString());
+    verify(userRepository, never()).save(any());
+  }
+
+  @Test
+  void updateStatus_userNotFound_shouldThrowNotFound() {
+    // Arrange
+    Long userId = 999L;
+
+    when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+    // Act & Assert
+    org.junit.jupiter.api.Assertions.assertThrows(
+        com.cocinadelicia.backend.common.exception.NotFoundException.class,
+        () -> adminUserService.updateStatus(userId, true, "admin@example.com"));
+
+    verify(cognitoAdminClient, never()).enableUser(anyString());
+    verify(cognitoAdminClient, never()).disableUser(anyString());
+    verify(userRepository, never()).save(any());
+  }
 }

@@ -306,6 +306,166 @@ public class AdminUserController {
     return ResponseEntity.ok(response);
   }
 
+  @Operation(
+      summary = "Actualizar roles de usuario (Admin) - US05",
+      description =
+          """
+          Actualiza los roles de un usuario (reemplazo completo, no incremental).
+
+          Los cambios se sincronizan automáticamente con Cognito (add/remove user from groups).
+
+          **Hardening:**
+          - Un admin NO puede quitarse a sí mismo el rol ADMIN (auto-democión bloqueada)
+          - Promover a ADMIN requiere confirmación explícita via `confirmText`
+
+          **Campo requerido:**
+          - `roles`: Conjunto completo de roles a asignar (Set<RoleName>)
+
+          **Campo condicional:**
+          - `confirmText`: Obligatorio SOLO si se agrega el rol ADMIN. Debe coincidir exactamente con:
+            `"PROMOVER {email_del_usuario} A ADMIN"` (en mayúsculas)
+
+          **Requiere:** Rol ADMIN
+          """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Roles actualizados exitosamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = UserResponseDTO.class))),
+        @ApiResponse(
+            responseCode = "400",
+            description =
+                "Validación fallida (auto-democión, confirmación inválida, conjunto vacío, etc.)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class)))
+      })
+  @PutMapping("/{id}/roles")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<UserResponseDTO> updateRoles(
+      @PathVariable Long id,
+      @Valid @RequestBody com.cocinadelicia.backend.user.dto.UpdateRolesRequest request,
+      @org.springframework.security.core.annotation.AuthenticationPrincipal
+          org.springframework.security.oauth2.jwt.Jwt jwt) {
+
+    String performedBy = jwt.getClaim("email");
+    log.info(
+        "AdminUserController.updateRoles called for userId={} newRoles={} by={}",
+        id,
+        request.roles(),
+        performedBy);
+
+    UserResponseDTO response =
+        adminUserService.updateRoles(id, request.roles(), request.confirmText(), performedBy);
+
+    log.info("Roles updated successfully for userId={}", id);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @Operation(
+      summary = "Actualizar estado de activación de usuario (Admin) - US06",
+      description =
+          """
+          Activa o desactiva un usuario (enable/disable en Cognito + espejo en DB).
+
+          **Efecto:**
+          - `isActive=true`: El usuario puede acceder al sistema (AdminEnableUser en Cognito)
+          - `isActive=false`: El usuario NO puede acceder (AdminDisableUser en Cognito, bloqueo efectivo)
+
+          **Sincronización:**
+          - Cambio se aplica primero en Cognito (fuente de verdad para acceso)
+          - Luego se espeja en `app_user.is_active` (DB)
+
+          **Campo requerido:**
+          - `isActive`: Boolean (true=activo, false=inactivo)
+
+          **Requiere:** Rol ADMIN
+          """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Estado actualizado exitosamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = UserResponseDTO.class))),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Validación fallida (isActive null)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class)))
+      })
+  @PatchMapping("/{id}/status")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<UserResponseDTO> updateStatus(
+      @PathVariable Long id,
+      @Valid @RequestBody com.cocinadelicia.backend.user.dto.UpdateUserStatusRequest request,
+      @org.springframework.security.core.annotation.AuthenticationPrincipal
+          org.springframework.security.oauth2.jwt.Jwt jwt) {
+
+    String performedBy = jwt.getClaim("email");
+    log.info(
+        "AdminUserController.updateStatus called for userId={} isActive={} by={}",
+        id,
+        request.isActive(),
+        performedBy);
+
+    UserResponseDTO response = adminUserService.updateStatus(id, request.isActive(), performedBy);
+
+    log.info("Status updated successfully for userId={}", id);
+
+    return ResponseEntity.ok(response);
+  }
+
   /**
    * Limita el tamaño de página al máximo configurado para evitar queries excesivas.
    *
