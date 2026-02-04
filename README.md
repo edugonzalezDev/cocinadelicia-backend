@@ -454,6 +454,88 @@ Además:
 
 ---
 
+## 👥 Gestión de Usuarios - Admin (Sprint 6)
+
+Esta sección documenta los endpoints de gestión de usuarios para el panel administrativo, implementados en el Sprint 6.
+
+> **Nota:** Todos los endpoints requieren rol `ADMIN` y autenticación JWT.
+
+### 🔌 Endpoints de gestión de usuarios
+
+#### 1. Listar usuarios (Admin)
+
+- **Método/Path:** `GET /api/admin/users`
+- **Quién lo usa:** Panel administrativo (solo ADMIN).
+- **Descripción:** Lista paginada de usuarios con búsqueda y filtros avanzados.
+- **Auth:** `Bearer JWT`
+- **Roles:** `ADMIN`
+
+**Parámetros de filtro (todos opcionales):**
+
+- `q` → búsqueda por email, nombre, apellido o teléfono (case-insensitive)
+- `roles` → filtrar por roles (multi-select, OR lógico). Ej: `ADMIN,CHEF`
+- `isActive` → filtrar por estado activo/inactivo (`true` o `false`)
+- `hasPendingOrders` → usuarios con/sin pedidos pendientes (`true` o `false`)
+- `page` → número de página (0-based, default: 0)
+- `size` → tamaño de página (default: 20, max: 100)
+- `sort` → ordenamiento (ej: `email,asc` o `createdAt,desc`)
+
+**Ejemplo de uso:**
+
+```http
+GET /api/admin/users?q=juan&roles=CUSTOMER&isActive=true&hasPendingOrders=false&page=0&size=20&sort=email,asc
+Authorization: Bearer <ADMIN_TOKEN>
+```
+
+**Response 200 (ejemplo):**
+
+```json
+{
+  "content": [
+    {
+      "id": 15,
+      "cognitoUserId": "abc123-def456-...",
+      "email": "juan.perez@example.com",
+      "firstName": "Juan",
+      "lastName": "Pérez",
+      "phone": "+59899123456",
+      "isActive": true,
+      "roles": ["CUSTOMER"],
+      "hasPendingOrders": false
+    },
+    {
+      "id": 23,
+      "cognitoUserId": "xyz789-uvw012-...",
+      "email": "juana.garcia@example.com",
+      "firstName": "Juana",
+      "lastName": "García",
+      "phone": "+59899654321",
+      "isActive": true,
+      "roles": ["CUSTOMER", "CHEF"],
+      "hasPendingOrders": true
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 2,
+  "totalPages": 1
+}
+```
+
+**Errores comunes:**
+
+- **401 Unauthorized:** Token JWT inválido o ausente
+- **403 Forbidden:** Usuario no tiene rol ADMIN
+
+**Notas técnicas:**
+
+- "Pedidos pendientes" se define como: pedidos con `status NOT IN ('DELIVERED', 'CANCELLED')`
+- La búsqueda por texto (`q`) aplica a: email, firstName, lastName y phone
+- El filtro de roles es inclusivo (OR): un usuario con múltiples roles aparecerá si tiene al menos uno de los roles especificados
+- El tamaño máximo de página está limitado a 100 para evitar queries excesivas
+
+---
+
 ## ❗ Errores típicos en el flujo de Chef
 
 Esta sección resume los errores más frecuentes desde la perspectiva de la **vista de Chef** y del
