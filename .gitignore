@@ -3,6 +3,7 @@ target/
 backend-snippets/
 zips/
 structure_exports/
+docs/
 context/
 *.zip
 generate_backend_snippets.sh
