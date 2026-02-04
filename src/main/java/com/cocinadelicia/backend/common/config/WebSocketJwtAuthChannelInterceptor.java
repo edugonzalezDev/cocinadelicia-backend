@@ -40,7 +40,8 @@ public class WebSocketJwtAuthChannelInterceptor implements ChannelInterceptor {
           (authHeaders != null && !authHeaders.isEmpty()) ? authHeaders.get(0) : null;
 
       if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
-        log.warn("[WS] CONNECT sin Authorization Bearer: headers={}", authHeaders);
+        // ⚠️ SEGURIDAD: NO loguear headers completos (pueden contener tokens JWT)
+        log.warn("[WS] CONNECT sin Authorization Bearer válido");
         throw new AccessDeniedException("Missing or invalid Authorization header in CONNECT");
       }
 
@@ -57,7 +58,8 @@ public class WebSocketJwtAuthChannelInterceptor implements ChannelInterceptor {
           log.debug("[WS] Usuario autenticado en STOMP CONNECT: {}", authToken.getName());
         }
       } catch (JwtException ex) {
-        log.warn("[WS] JWT inválido en CONNECT: {}", ex.getMessage());
+        // ⚠️ SEGURIDAD: NO loguear mensaje de excepción (puede contener partes del token)
+        log.warn("[WS] JWT inválido en CONNECT");
         throw new AccessDeniedException("Invalid JWT token");
       }
     }

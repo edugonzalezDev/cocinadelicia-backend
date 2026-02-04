@@ -1,0 +1,13 @@
+feat: short summary
+
+# Body lines must be <= 100 chars.
+# Use imperative, present tense. Add a blank line between header and body.
+# Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+#
+# Example:
+# feat: improve catalog filters and product SEO
+#
+# - add CatalogFilters with search, category pills, availability toggle
+# - sync /tienda and /tienda/categoria/:slug with store filters
+# - add /producto/:slug detail page and SEO meta updates
+# - add tests for catalog filters and product detail view
