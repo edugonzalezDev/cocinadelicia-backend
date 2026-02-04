@@ -5,6 +5,7 @@ import static com.cocinadelicia.backend.user.repository.spec.UserSpecifications.
 import com.cocinadelicia.backend.auth.cognito.CognitoAdminClient;
 import com.cocinadelicia.backend.auth.cognito.CognitoUserInfo;
 import com.cocinadelicia.backend.common.exception.ConflictException;
+import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.model.enums.OrderStatus;
 import com.cocinadelicia.backend.common.model.enums.RoleName;
 import com.cocinadelicia.backend.common.web.PageResponse;
@@ -13,6 +14,7 @@ import com.cocinadelicia.backend.user.dto.AdminUserFilter;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
 import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
+import com.cocinadelicia.backend.user.dto.UpdateUserProfileRequest;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.model.AppUser;
 import com.cocinadelicia.backend.user.model.Role;
@@ -179,12 +181,30 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     // 5. Crear usuario en DB con datos de Cognito
+    // Aplicar valores por defecto si firstName/lastName no existen en Cognito
+    String firstName = cognitoUser.getFirstName();
+    String lastName = cognitoUser.getLastName();
+
+    if (firstName == null || firstName.isBlank()) {
+      // Extraer nombre del email como fallback (parte antes del @)
+      String emailLocal = normalizedEmail.contains("@")
+          ? normalizedEmail.substring(0, normalizedEmail.indexOf("@"))
+          : normalizedEmail;
+      firstName = capitalize(emailLocal.replace(".", " ").replace("_", " "));
+      log.debug("firstName not found in Cognito, using email-based default: {}", firstName);
+    }
+
+    if (lastName == null || lastName.isBlank()) {
+      lastName = "(Importado)";
+      log.debug("lastName not found in Cognito, using default: {}", lastName);
+    }
+
     AppUser newUser =
         AppUser.builder()
             .cognitoUserId(cognitoUser.getCognitoUserId())
             .email(normalizedEmail)
-            .firstName(cognitoUser.getFirstName())
-            .lastName(cognitoUser.getLastName())
+            .firstName(firstName)
+            .lastName(lastName)
             .phone(cognitoUser.getPhone())
             .isActive(true) // Por defecto activo al importar (US06 manejará cambios)
             .roles(new LinkedHashSet<>())
@@ -217,6 +237,8 @@ public class AdminUserServiceImpl implements AdminUserService {
    * <p>Filtra solo grupos que coincidan con RoleName (ADMIN, CHEF, COURIER, CUSTOMER). Loguea
    * warning para grupos desconocidos.
    *
+   * <p>Normaliza los grupos a uppercase ya que Cognito puede devolverlos en minúsculas.
+   *
    * @param cognitoGroups grupos del usuario en Cognito
    * @return conjunto de roles válidos
    */
@@ -232,10 +254,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     Set<String> unknownGroups = new LinkedHashSet<>();
 
     for (String group : cognitoGroups) {
-      if (validRoleNames.contains(group)) {
-        validRoles.add(RoleName.valueOf(group));
+      // Normalizar a uppercase porque Cognito puede devolver grupos en minúsculas
+      String normalizedGroup = group == null ? null : group.toUpperCase();
+
+      if (normalizedGroup != null && validRoleNames.contains(normalizedGroup)) {
+        validRoles.add(RoleName.valueOf(normalizedGroup));
       } else {
-        unknownGroups.add(group);
+        unknownGroups.add(group); // Loguear el grupo original para debugging
       }
     }
 
@@ -246,6 +271,54 @@ public class AdminUserServiceImpl implements AdminUserService {
     log.debug(
         "Mapped {} Cognito groups to {} valid roles", cognitoGroups.size(), validRoles.size());
     return validRoles;
+  }
+
+  @Override
+  @Transactional
+  public UserResponseDTO updateUserProfile(Long userId, UpdateUserProfileRequest request) {
+    log.info("AdminUserService.updateUserProfile: userId={} request={}", userId, request);
+
+    // 1. Buscar usuario
+    AppUser user =
+        userRepository
+            .findById(userId)
+            .orElseThrow(
+                () -> {
+                  log.warn("User not found with id: {}", userId);
+                  return new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado.");
+                });
+
+    // 2. Actualizar solo campos no-null
+    boolean updated = false;
+
+    if (request.firstName() != null) {
+      user.setFirstName(request.firstName());
+      updated = true;
+      log.debug("Updated firstName for user {}", userId);
+    }
+
+    if (request.lastName() != null) {
+      user.setLastName(request.lastName());
+      updated = true;
+      log.debug("Updated lastName for user {}", userId);
+    }
+
+    if (request.phone() != null) {
+      user.setPhone(request.phone());
+      updated = true;
+      log.debug("Updated phone for user {}", userId);
+    }
+
+    // 3. Guardar si hubo cambios
+    if (updated) {
+      user = userRepository.save(user);
+      log.info("User profile updated successfully for userId={}", userId);
+    } else {
+      log.debug("No fields to update for userId={}", userId);
+    }
+
+    // 4. Retornar DTO actualizado
+    return mapToUserResponseDTO(user);
   }
 
   /**
@@ -354,5 +427,32 @@ public class AdminUserServiceImpl implements AdminUserService {
         user.isActive(),
         roleNames,
         hasPending);
+  }
+
+  /**
+   * Capitaliza la primera letra de cada palabra en un string.
+   *
+   * @param text texto a capitalizar
+   * @return texto con primera letra de cada palabra en mayúscula
+   */
+  private String capitalize(String text) {
+    if (text == null || text.isBlank()) return text;
+
+    String[] words = text.split("\\s+");
+    StringBuilder result = new StringBuilder();
+
+    for (String word : words) {
+      if (!word.isEmpty()) {
+        if (result.length() > 0) {
+          result.append(" ");
+        }
+        result.append(Character.toUpperCase(word.charAt(0)));
+        if (word.length() > 1) {
+          result.append(word.substring(1).toLowerCase());
+        }
+      }
+    }
+
+    return result.toString();
   }
 }

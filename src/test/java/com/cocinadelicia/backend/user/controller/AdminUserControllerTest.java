@@ -1,9 +1,11 @@
 package com.cocinadelicia.backend.user.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,6 +18,7 @@ import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
 import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
+import com.cocinadelicia.backend.user.dto.UpdateUserProfileRequest;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.AdminUserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -508,4 +511,132 @@ class AdminUserControllerTest {
 
     verify(adminUserService, times(1)).importUser(any());
   }
+
+  // ==================== Tests PATCH /api/admin/users/{id} ====================
+
+  @Test
+  void updateUserProfile_withAdminRole_validRequest_returns200() throws Exception {
+    UpdateUserProfileRequest request = new UpdateUserProfileRequest("Juan", "Pérez", "+59899555555");
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(1L)
+            .cognitoUserId("cognito-123")
+            .email("juan@example.com")
+            .firstName("Juan")
+            .lastName("Pérez")
+            .phone("+59899555555")
+            .roles(Set.of("CUSTOMER"))
+            .build();
+
+    when(adminUserService.updateUserProfile(eq(1L), any())).thenReturn(mockUser);
+
+    mvc.perform(
+            patch("/api/admin/users/1")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.email").value("juan@example.com"))
+        .andExpect(jsonPath("$.firstName").value("Juan"))
+        .andExpect(jsonPath("$.lastName").value("Pérez"))
+        .andExpect(jsonPath("$.phone").value("+59899555555"));
+
+    verify(adminUserService, times(1)).updateUserProfile(eq(1L), any());
+  }
+
+  @Test
+  void updateUserProfile_withoutAuth_returns401() throws Exception {
+    UpdateUserProfileRequest request = new UpdateUserProfileRequest("Juan", null, null);
+
+    mvc.perform(
+            patch("/api/admin/users/1")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isUnauthorized());
+
+    verify(adminUserService, never()).updateUserProfile(any(), any());
+  }
+
+  @Test
+  void updateUserProfile_withCustomerRole_returns403() throws Exception {
+    UpdateUserProfileRequest request = new UpdateUserProfileRequest("Juan", null, null);
+
+    mvc.perform(
+            patch("/api/admin/users/1")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+        .andExpect(status().isForbidden());
+
+    verify(adminUserService, never()).updateUserProfile(any(), any());
+  }
+
+  @Test
+  void updateUserProfile_userNotFound_returns404() throws Exception {
+    UpdateUserProfileRequest request = new UpdateUserProfileRequest("Juan", "Pérez", null);
+
+    when(adminUserService.updateUserProfile(eq(999L), any()))
+        .thenThrow(new NotFoundException("USER_NOT_FOUND", "Usuario no encontrado."));
+
+    mvc.perform(
+            patch("/api/admin/users/999")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
+
+    verify(adminUserService, times(1)).updateUserProfile(eq(999L), any());
+  }
+
+  @Test
+  void updateUserProfile_fieldTooLong_returns400() throws Exception {
+    // Campo firstName excede el límite de 191 caracteres
+    String longName = "a".repeat(192);
+    UpdateUserProfileRequest request = new UpdateUserProfileRequest(longName, null, null);
+
+    mvc.perform(
+            patch("/api/admin/users/1")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields").exists())
+        .andExpect(jsonPath("$.fields.firstName").exists());
+
+    verify(adminUserService, never()).updateUserProfile(any(), any());
+  }
+
+  @Test
+  void updateUserProfile_partialUpdate_returns200() throws Exception {
+    // Solo actualizar teléfono
+    UpdateUserProfileRequest request = new UpdateUserProfileRequest(null, null, "+59899999999");
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(1L)
+            .cognitoUserId("cognito-123")
+            .email("juan@example.com")
+            .firstName("Juan")
+            .lastName("Original")
+            .phone("+59899999999")
+            .roles(Set.of("CUSTOMER"))
+            .build();
+
+    when(adminUserService.updateUserProfile(eq(1L), any())).thenReturn(mockUser);
+
+    mvc.perform(
+            patch("/api/admin/users/1")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.phone").value("+59899999999"));
+
+    verify(adminUserService, times(1)).updateUserProfile(eq(1L), any());
+  }
 }
+
+

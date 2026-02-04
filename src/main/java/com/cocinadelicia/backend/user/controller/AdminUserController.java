@@ -6,6 +6,7 @@ import com.cocinadelicia.backend.user.dto.AdminUserFilter;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
 import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
+import com.cocinadelicia.backend.user.dto.UpdateUserProfileRequest;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -240,6 +241,69 @@ public class AdminUserController {
     log.info("User imported successfully: {} (id={})", response.getEmail(), response.getId());
 
     return ResponseEntity.status(201).body(response);
+  }
+
+  @Operation(
+      summary = "Actualizar perfil de usuario (Admin)",
+      description =
+          """
+          Actualiza el perfil básico de un usuario en DB (firstName, lastName, phone).
+
+          Solo se actualizan los campos enviados (no-null). Los campos omitidos permanecen sin cambios.
+
+          **Nota:** El email NO es editable desde este endpoint.
+
+          **Requiere:** Rol ADMIN
+          """,
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Perfil actualizado exitosamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = UserResponseDTO.class))),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Validación fallida (campo muy largo, formato inválido, etc.)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class)))
+      })
+  @PatchMapping("/{id}")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<UserResponseDTO> updateUserProfile(
+      @PathVariable Long id, @Valid @RequestBody UpdateUserProfileRequest request) {
+
+    log.info("AdminUserController.updateUserProfile called for userId={}", id);
+
+    UserResponseDTO response = adminUserService.updateUserProfile(id, request);
+
+    log.info("User profile updated successfully for userId={}", id);
+
+    return ResponseEntity.ok(response);
   }
 
   /**

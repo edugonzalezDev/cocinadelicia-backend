@@ -5,6 +5,7 @@ import com.cocinadelicia.backend.user.dto.AdminUserFilter;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
 import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
+import com.cocinadelicia.backend.user.dto.UpdateUserProfileRequest;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import org.springframework.data.domain.Pageable;
 
@@ -47,4 +48,16 @@ public interface AdminUserService {
    *     importado o hay conflicto de email
    */
   UserResponseDTO importUser(ImportUserRequest request);
+
+  /**
+   * Actualiza el perfil básico de un usuario en DB.
+   *
+   * <p>Solo actualiza los campos no-null del request (firstName, lastName, phone).
+   *
+   * @param userId ID del usuario a actualizar
+   * @param request datos de perfil a actualizar
+   * @return información actualizada del usuario
+   * @throws com.cocinadelicia.backend.common.exception.NotFoundException si el usuario no existe
+   */
+  UserResponseDTO updateUserProfile(Long userId, UpdateUserProfileRequest request);
 }

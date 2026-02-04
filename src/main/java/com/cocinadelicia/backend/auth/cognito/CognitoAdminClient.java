@@ -166,6 +166,14 @@ public class CognitoAdminClient {
 
       log.info("User found in Cognito: {} (sub={})", username, cognitoUserId);
 
+      // Log atributos opcionales faltantes
+      if (firstName == null) {
+        log.debug("Attribute 'given_name' not found for user {}", username);
+      }
+      if (lastName == null) {
+        log.debug("Attribute 'family_name' not found for user {}", username);
+      }
+
       // Obtener grupos del usuario
       Set<String> groups = getUserGroups(username);
       log.debug("User {} has {} groups: {}", username, groups.size(), groups);
