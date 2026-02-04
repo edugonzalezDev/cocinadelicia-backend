@@ -38,6 +38,8 @@ management:
 cognito:
   # valor por defecto, lo sobreescriben los profiles
   domain: ${COGNITO_DOMAIN:cdd-auth.auth.us-east-1.amazoncognito.com}
+  user-pool-id: ${COGNITO_USER_POOL_ID:}
+  region: ${AWS_REGION:us-east-1}
 
 app:
   s3:

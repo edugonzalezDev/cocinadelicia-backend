@@ -4,13 +4,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.cocinadelicia.backend.common.config.SecurityConfig;
+import com.cocinadelicia.backend.common.exception.ConflictException;
+import com.cocinadelicia.backend.common.model.enums.RoleName;
 import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
+import com.cocinadelicia.backend.user.dto.InviteUserRequest;
+import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.AdminUserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +38,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class AdminUserControllerTest {
 
   @Autowired private MockMvc mvc;
+  @Autowired private ObjectMapper objectMapper;
 
   @MockitoBean private AdminUserService adminUserService;
   @MockitoBean private JwtDecoder jwtDecoder;
@@ -174,5 +181,181 @@ class AdminUserControllerTest {
         .andExpect(jsonPath("$.content").isArray());
 
     verify(adminUserService, times(1)).listUsers(any(), any());
+  }
+
+  // ========== Tests para POST /api/admin/users/invite ==========
+
+  @Test
+  void inviteUser_withoutAuth_returns401() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest(
+            "nuevo@example.com", "Nuevo", "Usuario", "+59899222222", Set.of(RoleName.CUSTOMER));
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isUnauthorized());
+
+    verify(adminUserService, never()).inviteUser(any());
+  }
+
+  @Test
+  void inviteUser_withCustomerRole_returns403() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest(
+            "nuevo@example.com", "Nuevo", "Usuario", "+59899222222", Set.of(RoleName.CUSTOMER));
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+        .andExpect(status().isForbidden());
+
+    verify(adminUserService, never()).inviteUser(any());
+  }
+
+  @Test
+  void inviteUser_withAdminRole_validRequest_returns201() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest(
+            "nuevo@example.com", "Nuevo", "Usuario", "+59899222222", Set.of(RoleName.CUSTOMER));
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(10L)
+            .cognitoUserId("cognito-abc-123")
+            .email("nuevo@example.com")
+            .firstName("Nuevo")
+            .lastName("Usuario")
+            .phone("+59899222222")
+            .roles(Set.of("CUSTOMER"))
+            .build();
+
+    when(adminUserService.inviteUser(any())).thenReturn(mockUser);
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value(10))
+        .andExpect(jsonPath("$.email").value("nuevo@example.com"))
+        .andExpect(jsonPath("$.cognitoUserId").value("cognito-abc-123"))
+        .andExpect(jsonPath("$.roles").isArray())
+        .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"));
+
+    verify(adminUserService, times(1)).inviteUser(any());
+  }
+
+  @Test
+  void inviteUser_withoutEmail_returns400() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest(null, "Nuevo", "Usuario", "+59899222222", Set.of(RoleName.CUSTOMER));
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields.email").exists());
+
+    verify(adminUserService, never()).inviteUser(any());
+  }
+
+  @Test
+  void inviteUser_withInvalidEmail_returns400() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest(
+            "invalid-email", "Nuevo", "Usuario", "+59899222222", Set.of(RoleName.CUSTOMER));
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields.email").exists());
+
+    verify(adminUserService, never()).inviteUser(any());
+  }
+
+  @Test
+  void inviteUser_withEmptyRoles_returns400() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest("nuevo@example.com", "Nuevo", "Usuario", "+59899222222", Set.of());
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields.roles").exists());
+
+    verify(adminUserService, never()).inviteUser(any());
+  }
+
+  @Test
+  void inviteUser_withDuplicateEmail_returns409() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest(
+            "duplicado@example.com",
+            "Duplicado",
+            "Usuario",
+            "+59899222222",
+            Set.of(RoleName.CUSTOMER));
+
+    when(adminUserService.inviteUser(any()))
+        .thenThrow(new ConflictException("EMAIL_CONFLICT", "El email ya está registrado."));
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("EMAIL_CONFLICT"))
+        .andExpect(jsonPath("$.message").value("El email ya está registrado."));
+
+    verify(adminUserService, times(1)).inviteUser(any());
+  }
+
+  @Test
+  void inviteUser_withMultipleRoles_returns201() throws Exception {
+    InviteUserRequest request =
+        new InviteUserRequest(
+            "multirole@example.com",
+            "Multi",
+            "Role",
+            "+59899222222",
+            Set.of(RoleName.CHEF, RoleName.CUSTOMER));
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(11L)
+            .cognitoUserId("cognito-multi-123")
+            .email("multirole@example.com")
+            .firstName("Multi")
+            .lastName("Role")
+            .phone("+59899222222")
+            .roles(Set.of("CHEF", "CUSTOMER"))
+            .build();
+
+    when(adminUserService.inviteUser(any())).thenReturn(mockUser);
+
+    mvc.perform(
+            post("/api/admin/users/invite")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.email").value("multirole@example.com"))
+        .andExpect(jsonPath("$.roles").isArray());
+
+    verify(adminUserService, times(1)).inviteUser(any());
   }
 }

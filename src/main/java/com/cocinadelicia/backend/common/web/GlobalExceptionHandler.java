@@ -2,6 +2,7 @@
 package com.cocinadelicia.backend.common.web;
 
 import com.cocinadelicia.backend.common.exception.BadRequestException;
+import com.cocinadelicia.backend.common.exception.ConflictException;
 import com.cocinadelicia.backend.common.exception.ForbiddenException;
 import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.user.service.UserService.EmailConflictException;
@@ -108,6 +109,15 @@ public class GlobalExceptionHandler {
     log.warn("NotFound code={} msg={} path={}", ex.code(), ex.getMessage(), getPath(request));
     return ApiError.of(
         HttpStatus.NOT_FOUND.value(), "Not Found", ex.getMessage(), getPath(request), ex.code());
+  }
+
+  // 6a) Conflict de negocio — con code dominio (ej: EMAIL_CONFLICT, USER_EXISTS_IN_COGNITO)
+  @ExceptionHandler(ConflictException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ApiError handleConflictBusiness(ConflictException ex, WebRequest request) {
+    log.warn("Conflict code={} msg={} path={}", ex.code(), ex.getMessage(), getPath(request));
+    return ApiError.of(
+        HttpStatus.CONFLICT.value(), "Conflict", ex.getMessage(), getPath(request), ex.code());
   }
 
   // 6b) Forbidden de negocio (ej: ownership validation)

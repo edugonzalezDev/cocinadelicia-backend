@@ -4,6 +4,8 @@ import com.cocinadelicia.backend.common.web.ApiError;
 import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.user.dto.AdminUserFilter;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
+import com.cocinadelicia.backend.user.dto.InviteUserRequest;
+import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -11,6 +13,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springdoc.core.annotations.ParameterObject;
@@ -99,6 +102,73 @@ public class AdminUserController {
         response.totalElements());
 
     return ResponseEntity.ok(response);
+  }
+
+  @Operation(
+      summary = "Invitar usuario nuevo (Admin)",
+      description =
+          """
+          Crea un usuario nuevo en Cognito y lo persiste en DB con los roles especificados.
+
+          El usuario recibirá un email de invitación con credenciales temporales para configurar su contraseña.
+
+          **Campos requeridos:**
+          - `email`: Email válido (usado como username en Cognito)
+          - `roles`: Al menos un rol (ADMIN, CHEF, COURIER, CUSTOMER)
+
+          **Campos opcionales:**
+          - `firstName`, `lastName`, `phone`
+
+          **Requiere:** Rol ADMIN
+          """,
+      responses = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Usuario invitado exitosamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = UserResponseDTO.class))),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Validación fallida (email inválido, rol vacío, etc.)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "409",
+            description = "Email ya existe en DB o Cognito",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class)))
+      })
+  @PostMapping("/invite")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<UserResponseDTO> inviteUser(@Valid @RequestBody InviteUserRequest request) {
+
+    log.info("AdminUserController.inviteUser called with email={}", request.email());
+
+    UserResponseDTO response = adminUserService.inviteUser(request);
+
+    log.info("User invited successfully: {} (id={})", response.getEmail(), response.getId());
+
+    return ResponseEntity.status(201).body(response);
   }
 
   /**
