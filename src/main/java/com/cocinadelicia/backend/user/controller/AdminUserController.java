@@ -4,6 +4,7 @@ import com.cocinadelicia.backend.common.web.ApiError;
 import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.user.dto.AdminUserFilter;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
+import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.AdminUserService;
@@ -167,6 +168,76 @@ public class AdminUserController {
     UserResponseDTO response = adminUserService.inviteUser(request);
 
     log.info("User invited successfully: {} (id={})", response.getEmail(), response.getId());
+
+    return ResponseEntity.status(201).body(response);
+  }
+
+  @Operation(
+      summary = "Importar usuario existente de Cognito (Admin)",
+      description =
+          """
+          Importa a la DB local un usuario que ya existe en Cognito.
+
+          Sincroniza datos de perfil (nombre, apellido, teléfono) y roles (grupos) desde Cognito.
+
+          **Campo requerido:**
+          - `email`: Email del usuario en Cognito (usado como username)
+
+          **Requiere:** Rol ADMIN
+          """,
+      responses = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Usuario importado exitosamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = UserResponseDTO.class))),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Validación fallida (email inválido o vacío)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no existe en Cognito",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "409",
+            description = "Usuario ya importado o conflicto de email",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Sin permisos (requiere rol ADMIN)",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ApiError.class)))
+      })
+  @PostMapping("/import")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<UserResponseDTO> importUser(@Valid @RequestBody ImportUserRequest request) {
+
+    log.info("AdminUserController.importUser called with email={}", request.email());
+
+    UserResponseDTO response = adminUserService.importUser(request);
+
+    log.info("User imported successfully: {} (id={})", response.getEmail(), response.getId());
 
     return ResponseEntity.status(201).body(response);
   }

@@ -10,9 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.cocinadelicia.backend.common.config.SecurityConfig;
 import com.cocinadelicia.backend.common.exception.ConflictException;
+import com.cocinadelicia.backend.common.exception.NotFoundException;
 import com.cocinadelicia.backend.common.model.enums.RoleName;
 import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
+import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import com.cocinadelicia.backend.user.service.AdminUserService;
@@ -357,5 +359,153 @@ class AdminUserControllerTest {
         .andExpect(jsonPath("$.roles").isArray());
 
     verify(adminUserService, times(1)).inviteUser(any());
+  }
+
+  // ========== Tests para POST /api/admin/users/import ==========
+
+  @Test
+  void importUser_withoutAuth_returns401() throws Exception {
+    ImportUserRequest request = new ImportUserRequest("existente@example.com");
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isUnauthorized());
+
+    verify(adminUserService, never()).importUser(any());
+  }
+
+  @Test
+  void importUser_withCustomerRole_returns403() throws Exception {
+    ImportUserRequest request = new ImportUserRequest("existente@example.com");
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+        .andExpect(status().isForbidden());
+
+    verify(adminUserService, never()).importUser(any());
+  }
+
+  @Test
+  void importUser_withAdminRole_validRequest_returns201() throws Exception {
+    ImportUserRequest request = new ImportUserRequest("existente@example.com");
+
+    UserResponseDTO mockUser =
+        UserResponseDTO.builder()
+            .id(20L)
+            .cognitoUserId("cognito-existing-123")
+            .email("existente@example.com")
+            .firstName("Usuario")
+            .lastName("Existente")
+            .phone("+59899333333")
+            .roles(Set.of("CUSTOMER", "CHEF"))
+            .build();
+
+    when(adminUserService.importUser(any())).thenReturn(mockUser);
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value(20))
+        .andExpect(jsonPath("$.email").value("existente@example.com"))
+        .andExpect(jsonPath("$.cognitoUserId").value("cognito-existing-123"))
+        .andExpect(jsonPath("$.roles").isArray());
+
+    verify(adminUserService, times(1)).importUser(any());
+  }
+
+  @Test
+  void importUser_withoutEmail_returns400() throws Exception {
+    ImportUserRequest request = new ImportUserRequest(null);
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields.email").exists());
+
+    verify(adminUserService, never()).importUser(any());
+  }
+
+  @Test
+  void importUser_withInvalidEmail_returns400() throws Exception {
+    ImportUserRequest request = new ImportUserRequest("not-an-email");
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fields.email").exists());
+
+    verify(adminUserService, never()).importUser(any());
+  }
+
+  @Test
+  void importUser_userNotFoundInCognito_returns404() throws Exception {
+    ImportUserRequest request = new ImportUserRequest("noexiste@example.com");
+
+    when(adminUserService.importUser(any()))
+        .thenThrow(
+            new NotFoundException(
+                "USER_NOT_FOUND_IN_COGNITO", "Usuario no existe en Cognito."));
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("USER_NOT_FOUND_IN_COGNITO"));
+
+    verify(adminUserService, times(1)).importUser(any());
+  }
+
+  @Test
+  void importUser_userAlreadyImported_returns409() throws Exception {
+    ImportUserRequest request = new ImportUserRequest("yaImportado@example.com");
+
+    when(adminUserService.importUser(any()))
+        .thenThrow(
+            new ConflictException("USER_ALREADY_IMPORTED", "El usuario ya está importado."));
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("USER_ALREADY_IMPORTED"));
+
+    verify(adminUserService, times(1)).importUser(any());
+  }
+
+  @Test
+  void importUser_emailConflict_returns409() throws Exception {
+    ImportUserRequest request = new ImportUserRequest("conflicto@example.com");
+
+    when(adminUserService.importUser(any()))
+        .thenThrow(
+            new ConflictException("EMAIL_CONFLICT", "Ya existe usuario con ese email."));
+
+    mvc.perform(
+            post("/api/admin/users/import")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("EMAIL_CONFLICT"));
+
+    verify(adminUserService, times(1)).importUser(any());
   }
 }

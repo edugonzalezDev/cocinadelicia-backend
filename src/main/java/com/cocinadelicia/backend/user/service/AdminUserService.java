@@ -3,6 +3,7 @@ package com.cocinadelicia.backend.user.service;
 import com.cocinadelicia.backend.common.web.PageResponse;
 import com.cocinadelicia.backend.user.dto.AdminUserFilter;
 import com.cocinadelicia.backend.user.dto.AdminUserListItemDTO;
+import com.cocinadelicia.backend.user.dto.ImportUserRequest;
 import com.cocinadelicia.backend.user.dto.InviteUserRequest;
 import com.cocinadelicia.backend.user.dto.UserResponseDTO;
 import org.springframework.data.domain.Pageable;
@@ -32,4 +33,18 @@ public interface AdminUserService {
    *     validación
    */
   UserResponseDTO inviteUser(InviteUserRequest request);
+
+  /**
+   * Importa un usuario existente de Cognito a la DB local.
+   *
+   * <p>Sincroniza datos de perfil y roles desde Cognito.
+   *
+   * @param request datos del usuario a importar (email)
+   * @return información del usuario importado
+   * @throws com.cocinadelicia.backend.common.exception.NotFoundException si el usuario no existe
+   *     en Cognito
+   * @throws com.cocinadelicia.backend.common.exception.ConflictException si el usuario ya está
+   *     importado o hay conflicto de email
+   */
+  UserResponseDTO importUser(ImportUserRequest request);
 }
