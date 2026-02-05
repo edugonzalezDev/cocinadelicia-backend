@@ -18,8 +18,11 @@ import com.cocinadelicia.backend.product.repository.ProductRepository;
 import com.cocinadelicia.backend.product.repository.ProductVariantRepository;
 import com.cocinadelicia.backend.user.model.AppUser;
 import com.cocinadelicia.backend.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +42,8 @@ public class CartServiceImpl implements CartService {
   private final ProductRepository productRepository;
   private final ProductVariantRepository productVariantRepository;
   private final CartMapper cartMapper;
+
+  @PersistenceContext private EntityManager entityManager;
 
   private static final int MAX_ITEMS_PER_CART = 50;
 
@@ -100,7 +105,68 @@ public class CartServiceImpl implements CartService {
     String modifiersHash = ModifiersHashUtil.generateHash(request.modifiers());
     String modifiersJson = ModifiersHashUtil.toJson(request.modifiers());
 
-    // 6️⃣ Verificar si ya existe el mismo item (misma variante + modifiers)
+    // 6️⃣ Intentar agregar/actualizar con manejo de race condition
+    try {
+      return addOrUpdateCartItem(cart, product, variant, request, modifiersHash, modifiersJson, userId);
+    } catch (DataIntegrityViolationException e) {
+      // Race condition detectado: el item fue creado por otra transacción
+      log.warn(
+          "Cart.addItem.raceCondition detected userId={} cartId={} variantId={} - retrying",
+          userId,
+          cart.getId(),
+          variant.getId());
+
+      entityManager.clear(); // Limpiar cache de Hibernate
+
+      // Buscar nuevamente el item que debe existir ahora
+      var existingItem =
+          cartItemRepository.findByCart_IdAndProductVariant_IdAndModifiersHashAndDeletedAtIsNull(
+              cart.getId(), variant.getId(), modifiersHash);
+
+      if (existingItem.isPresent()) {
+        CartItem item = existingItem.get();
+        int newQuantity = item.getQuantity() + request.quantity();
+
+        if (newQuantity > 99) {
+          throw new BadRequestException(
+              "QUANTITY_EXCEEDED", "La cantidad total no puede exceder 99 unidades");
+        }
+
+        item.setQuantity(newQuantity);
+        cartItemRepository.save(item);
+        entityManager.flush();
+
+        log.info(
+            "Cart.addItem.increment.retry userId={} cartId={} itemId={} variantId={} newQty={}",
+            userId,
+            cart.getId(),
+            item.getId(),
+            variant.getId(),
+            newQuantity);
+
+        Cart refreshedCart = cartRepository.findById(cart.getId()).orElse(cart);
+        return cartMapper.toResponse(refreshedCart);
+      }
+
+      // Si aún no existe, relanzar la excepción original
+      throw e;
+    }
+  }
+
+  /**
+   * Méto.do auxiliar para agregar o actualizar un item del carrito.
+   * Separado para permitir manejo de race conditions.
+   */
+  private CartResponse addOrUpdateCartItem(
+      Cart cart,
+      Product product,
+      ProductVariant variant,
+      AddToCartRequest request,
+      String modifiersHash,
+      String modifiersJson,
+      Long userId) {
+
+    // Verificar si ya existe el mismo item
     var existingItem =
         cartItemRepository.findByCart_IdAndProductVariant_IdAndModifiersHashAndDeletedAtIsNull(
             cart.getId(), variant.getId(), modifiersHash);
@@ -117,6 +183,7 @@ public class CartServiceImpl implements CartService {
 
       item.setQuantity(newQuantity);
       cartItemRepository.save(item);
+      entityManager.flush(); // ✅ Flush explícito para asegurar persistencia inmediata
 
       log.info(
           "Cart.addItem.increment userId={} cartId={} itemId={} productId={} variantId={} oldQty={} newQty={}",
@@ -127,6 +194,8 @@ public class CartServiceImpl implements CartService {
           variant.getId(),
           item.getQuantity() - request.quantity(),
           newQuantity);
+
+      return cartMapper.toResponse(cart);
 
     } else {
       // Item nuevo → crear
@@ -143,7 +212,6 @@ public class CartServiceImpl implements CartService {
               .build();
 
       cart.addItem(newItem);
-      cartItemRepository.save(newItem);
 
       log.info(
           "Cart.addItem.new userId={} cartId={} productId={} variantId={} quantity={}",
@@ -152,11 +220,13 @@ public class CartServiceImpl implements CartService {
           product.getId(),
           variant.getId(),
           request.quantity());
-    }
 
-    // 7️⃣ Guardar carrito y devolver response
-    Cart savedCart = cartRepository.save(cart);
-    return cartMapper.toResponse(savedCart);
+      // Guardar carrito y hacer flush para validar constraint inmediatamente
+      Cart savedCart = cartRepository.save(cart);
+      entityManager.flush(); // ✅ Flush para detectar constraint violation inmediatamente
+
+      return cartMapper.toResponse(savedCart);
+    }
   }
 
   @Override

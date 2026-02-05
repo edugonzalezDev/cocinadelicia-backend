@@ -152,7 +152,6 @@ class CartServiceImplTest {
     when(cartItemRepository.findByCart_IdAndProductVariant_IdAndModifiersHashAndDeletedAtIsNull(
             anyLong(), anyLong(), anyString()))
         .thenReturn(Optional.empty());
-    when(cartItemRepository.save(any(CartItem.class))).thenAnswer(inv -> inv.getArgument(0));
     when(cartRepository.save(any(Cart.class))).thenReturn(testCart);
     when(cartMapper.toResponse(any(Cart.class))).thenReturn(mockCartResponse);
 
@@ -161,8 +160,9 @@ class CartServiceImplTest {
 
     // Then
     assertThat(result).isNotNull();
-    verify(cartItemRepository).save(any(CartItem.class));
+    // El nuevo item se persiste automáticamente vía cascade de cartRepository.save()
     verify(cartRepository).save(testCart);
+    verify(cartItemRepository, never()).save(any(CartItem.class)); // No save explícito para items nuevos
   }
 
   @Test

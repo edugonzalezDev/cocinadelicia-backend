@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -55,26 +54,31 @@ public interface ProductRepository
       """)
   List<Long> findAllActiveProductIds(Pageable pageable);
 
-  /** Carga productos por IDs con fetch joins (segunda query de paginación optimizada). */
+  /**
+   * Carga productos por IDs con category. Las colecciones variants, images y tags se cargan con
+   * BatchSize para evitar MultipleBagFetchException.
+   */
   @Query(
       """
-      SELECT DISTINCT p FROM Product p
-      LEFT JOIN FETCH p.variants v
+      SELECT p FROM Product p
       LEFT JOIN FETCH p.category
-      LEFT JOIN FETCH p.images
-      LEFT JOIN FETCH p.tags
       WHERE p.id IN :ids
       ORDER BY p.name
       """)
   List<Product> findByIdsWithFetchJoins(@Param("ids") List<Long> ids);
 
-  @EntityGraph(
-      attributePaths = {
-        "category",
-        "variants",
-        "tags",
-        "variants.modifierGroups",
-        "variants.modifierGroups.options"
-      })
-  Optional<Product> findBySlugIgnoreCaseAndIsActiveTrue(String slug);
+  /**
+   * Carga producto por slug con category. Las colecciones variants, images y tags se cargan con
+   * BatchSize para evitar MultipleBagFetchException. Solo se hace fetch eager de category
+   * (ManyToOne).
+   */
+  @Query(
+      """
+      SELECT p FROM Product p
+      LEFT JOIN FETCH p.category
+      WHERE LOWER(p.slug) = LOWER(:slug)
+      AND p.isActive = true
+      AND p.deletedAt IS NULL
+      """)
+  Optional<Product> findBySlugIgnoreCaseAndIsActiveTrue(@Param("slug") String slug);
 }

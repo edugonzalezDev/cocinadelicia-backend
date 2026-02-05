@@ -171,12 +171,41 @@ public class CartController {
   }
 
   @Operation(
+      summary = "Vaciar todos los items del carrito",
+      description =
+          """
+      Elimina todos los items del carrito del usuario autenticado.
+      El carrito en sí permanece, pero queda vacío.
+      Requiere token JWT válido.
+      Este endpoint es equivalente a DELETE /api/cart.
+      """,
+      responses = {
+        @ApiResponse(responseCode = "204", description = "Carrito vaciado correctamente"),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Carrito no encontrado",
+            content = @Content(schema = @Schema(implementation = ApiError.class))),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+      })
+  @DeleteMapping("/items")
+  public ResponseEntity<Void> clearAllItems(@AuthenticationPrincipal Jwt jwt) {
+    Long userId = currentUserService.getOrCreateCurrentUserId();
+    log.debug("DELETE /api/cart/items userId={}", userId);
+    cartService.clearCart(userId);
+    return ResponseEntity.noContent().build();
+  }
+
+  @Operation(
       summary = "Vaciar carrito completo",
       description =
           """
       Elimina todos los items del carrito del usuario autenticado.
       El carrito en sí permanece, pero queda vacío.
       Requiere token JWT válido.
+      Este endpoint es equivalente a DELETE /api/cart/items.
       """,
       responses = {
         @ApiResponse(responseCode = "204", description = "Carrito vaciado correctamente"),
